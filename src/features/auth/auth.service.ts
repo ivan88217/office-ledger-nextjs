@@ -611,58 +611,50 @@ export async function getPeerLedger(input: { peerId: string }) {
   if (!userId) throw new Error('請先登入')
   if (input.peerId === userId) throw new Error('無效的對象')
 
+  // 1. 取得對方基本資料
   const peer = await prisma.user.findUnique({
     where: { id: input.peerId },
     select: { id: true, username: true },
   })
   if (!peer) throw new Error('找不到使用者')
 
-  const pairLogs = await prisma.paymentLog.findMany({
+  // 2. 一次取得所有相關的 PaymentLog（大幅減少查詢次數）
+  const allLogs = await prisma.paymentLog.findMany({
     where: {
       OR: [
         { fromUserId: userId, toUserId: input.peerId },
         { fromUserId: input.peerId, toUserId: userId },
       ],
     },
-    select: {
-      id: true,
-      fromUserId: true,
-      toUserId: true,
-      type: true,
-      amountCents: true,
-      transactionId: true,
-      createdAt: true,
+    include: {
+      transaction: {
+        select: { id: true, title: true },
+      },
     },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
   })
+
+  // 分類 logs（在記憶體中處理，效能更好）
+  const pairLogs = allLogs
+    .filter((log) => log.createdAt)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+
+  const logsForDisplay = allLogs.slice(0, 100) // 最新的 100 筆
+
+  const debtAndSettlementLogs = allLogs.filter(
+    (log) =>
+      log.fromUserId === input.peerId &&
+      log.toUserId === userId &&
+      ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'].includes(log.type)
+  )
+
   const pairSummary = summarizePairLedger({
     userId,
     peerId: input.peerId,
     logs: pairLogs,
   })
 
-  const logs = await prisma.paymentLog.findMany({
-    where: {
-      OR: [
-        { fromUserId: userId, toUserId: input.peerId },
-        { fromUserId: input.peerId, toUserId: userId },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-    include: { transaction: { select: { id: true, title: true } } },
-  })
-
-  const debtAndSettlementLogs = await prisma.paymentLog.findMany({
-    where: {
-      fromUserId: input.peerId,
-      toUserId: userId,
-      type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'] },
-    },
-    orderBy: { createdAt: 'asc' },
-    include: { transaction: { select: { id: true, title: true } } },
-  })
-
+  // 3. 計算 receivableExpenseItems
   const debtMetaById = new Map(
     debtAndSettlementLogs
       .filter((log) => log.type === 'EXPENSE_DEBT')
@@ -688,6 +680,7 @@ export async function getPeerLedger(input: { peerId: string }) {
     remainingCents: item.remainingCents,
   }))
 
+  // 4. 取得 pending refund requests（這部分比較輕）
   const pendingOutgoingRefundRequests = await prisma.prepaymentRequest.findMany({
     where: {
       fromUserId: userId,
@@ -697,10 +690,28 @@ export async function getPeerLedger(input: { peerId: string }) {
     },
     select: { amountCents: true },
   })
+
   const pendingOutgoingRefundCents = pendingOutgoingRefundRequests.reduce(
     (sum, request) => sum + request.amountCents,
     0,
   )
+
+  const pendingIncomingPrepayments = await prisma.prepaymentRequest.findMany({
+    where: {
+      fromUserId: input.peerId,
+      toUserId: userId,
+      status: PrepaymentRequestStatus.PENDING,
+    },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      fromUserId: true,
+      toUserId: true,
+      amountCents: true,
+      kind: true,
+      createdAt: true,
+    },
+  })
 
   return {
     peer,
@@ -716,26 +727,11 @@ export async function getPeerLedger(input: { peerId: string }) {
       pairSummary.peerPrepaymentBalanceCents - pendingOutgoingRefundCents,
     ),
     effectiveNetCents: pairSummary.effectiveNetCents,
-    pendingIncomingPrepayments: await prisma.prepaymentRequest.findMany({
-      where: {
-        fromUserId: input.peerId,
-        toUserId: userId,
-        status: PrepaymentRequestStatus.PENDING,
-      },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        fromUserId: true,
-        toUserId: true,
-        amountCents: true,
-        kind: true,
-        createdAt: true,
-      },
-    }),
+    pendingIncomingPrepayments,
     receivableExpenseItems: receivableExpenseItems.sort((a, b) =>
       a.createdAt < b.createdAt ? 1 : -1,
     ),
-    logs: logs.map((log) => ({
+    logs: logsForDisplay.map((log) => ({
       id: log.id,
       type: log.type,
       amountCents: log.amountCents,
@@ -753,22 +749,27 @@ export async function getTransactionDetail(input: { transactionId: string }) {
   const userId = await resolveSessionUserId()
   if (!userId) throw new Error('請先登入')
 
+  // 一次取得交易與付款人資料
   const transaction = await prisma.transaction.findUnique({
     where: { id: input.transactionId },
-    include: { payer: { select: { username: true } } },
+    include: {
+      payer: { select: { username: true } },
+    },
   })
   if (!transaction) throw new Error('找不到交易')
 
-  const participantIds = transaction.participants.map((participant) => participant.userId)
+  const participantIds = transaction.participants.map((p) => p.userId)
   const involved = transaction.payerId === userId || participantIds.includes(userId)
   if (!involved) throw new Error('無權檢視此交易')
 
+  // 取得所有參與者的名稱（包含付款人）
   const users = await prisma.user.findMany({
     where: { id: { in: [...new Set([...participantIds, transaction.payerId])] } },
     select: { id: true, username: true },
   })
-  const nameById = Object.fromEntries(users.map((user) => [user.id, user.username]))
+  const nameById = new Map(users.map((user) => [user.id, user.username]))
 
+  // 取得相關的結算與債務紀錄
   const participantLogs = await prisma.paymentLog.findMany({
     where: {
       fromUserId: { in: participantIds.filter((id) => id !== transaction.payerId) },
@@ -808,7 +809,7 @@ export async function getTransactionDetail(input: { transactionId: string }) {
 
       return {
         userId: participant.userId,
-        username: nameById[participant.userId] ?? participant.userId,
+        username: nameById.get(participant.userId) ?? participant.userId,
         originalCents: participant.originalCents,
         allocatedCents: participant.allocatedCents,
         settleableCents,

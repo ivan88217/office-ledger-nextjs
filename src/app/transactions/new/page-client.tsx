@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { createExpenseTransactionAction } from '#/features/auth/actions'
 import { computeAllocations } from '#/features/ledger/domain/allocation'
 import { parseAdditionExpressionToCents } from '#/features/ledger/domain/parse-addition'
@@ -22,7 +22,7 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Separator } from '#/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#/components/ui/select'
-import { Combobox } from '#/components/ui/combobox'
+import { Combobox, type ComboboxRef } from '#/components/ui/combobox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 
 type Row = { userId: string; userInput: string; expression: string }
@@ -137,6 +137,8 @@ export function NewTransactionForm({
   const [preview, setPreview] = useState<ExpensePreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const expressionInputRefs = useRef<Array<HTMLInputElement | null>>([])
+  const participantComboboxRefs = useRef<Array<ComboboxRef | null>>([])
 
   useEffect(() => {
     if (users.length && !payerId) {
@@ -162,12 +164,25 @@ export function NewTransactionForm({
       userId,
       userInput: selectedUser?.username ?? '',
     })
+
+    // 選擇完成後自動 focus 到同列的金額欄位
+    requestAnimationFrame(() => {
+      expressionInputRefs.current[index]?.focus()
+    })
   }
 
   function onExpressionInputTab(event: React.KeyboardEvent<HTMLInputElement>, rowIndex: number) {
     if (event.key !== 'Tab' || event.shiftKey || rowIndex !== rows.length - 1) return
     event.preventDefault()
-    setRows((current) => [...current, { userId: '', userInput: '', expression: '' }])
+
+    setRows((current) => {
+      const newRows = [...current, { userId: '', userInput: '', expression: '' }]
+      // After state update, focus the new row's Combobox
+      requestAnimationFrame(() => {
+        participantComboboxRefs.current[rowIndex + 1]?.focus()
+      })
+      return newRows
+    })
   }
 
   function onSubmit(event: React.FormEvent) {
@@ -272,6 +287,9 @@ export function NewTransactionForm({
                     <div className="space-y-2">
                       <Label className="text-xs whitespace-nowrap">使用者</Label>
                       <Combobox
+                        ref={(el) => {
+                          participantComboboxRefs.current[index] = el
+                        }}
                         options={users.map((user) => ({
                           value: user.id,
                           label: user.username,
@@ -281,11 +299,20 @@ export function NewTransactionForm({
                         placeholder="選擇參與者..."
                         emptyMessage="找不到符合的使用者"
                         autoSelectFirstMatch={true}
+                        onSelectComplete={() => {
+                          // 選擇完成後 focus 到金額欄位
+                          requestAnimationFrame(() => {
+                            expressionInputRefs.current[index]?.focus()
+                          })
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs whitespace-nowrap">原始金額（元，可含 +）</Label>
                       <Input
+                        ref={(el) => {
+                          expressionInputRefs.current[index] = el
+                        }}
                         value={row.expression}
                         onChange={(event) => updateRow(index, { expression: event.target.value })}
                         onKeyDown={(event) => onExpressionInputTab(event, index)}

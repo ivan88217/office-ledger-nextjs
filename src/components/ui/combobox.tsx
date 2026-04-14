@@ -20,6 +20,10 @@ export interface ComboboxOption {
   label: string
 }
 
+export interface ComboboxRef {
+  focus: () => void
+}
+
 interface ComboboxProps {
   options: ComboboxOption[]
   value?: string
@@ -30,9 +34,11 @@ interface ComboboxProps {
   disabled?: boolean
   /** 當使用者輸入文字後按 Tab 或 Enter 時，是否自動選擇第一個符合的選項 */
   autoSelectFirstMatch?: boolean
+  /** 選擇完成後要執行的 callback（用來 focus 下一個欄位） */
+  onSelectComplete?: () => void
 }
 
-export function Combobox({
+export const Combobox = React.forwardRef<ComboboxRef, ComboboxProps>(({
   options,
   value,
   onValueChange,
@@ -41,11 +47,35 @@ export function Combobox({
   className,
   disabled = false,
   autoSelectFirstMatch = true,
-}: ComboboxProps) {
+  onSelectComplete,
+}, ref) => {
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
   const selectedOption = options.find((option) => option.value === value)
+
+  // 讓外部可以 focus 這個 Combobox，並自動開啟並 focus 輸入框
+  React.useImperativeHandle(ref, () => ({
+    focus: () => {
+      setOpen(true)
+      // 等待 Popover 開啟後 focus 內部輸入框
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 0)
+    },
+  }), [])
+
+  // 當 popover 開啟時，如果是程式 focus 進來的，確保輸入框獲得焦點
+  React.useEffect(() => {
+    if (open && inputRef.current) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus()
+      }, 10)
+      return () => clearTimeout(timer)
+    }
+  }, [open])
 
   const filteredOptions = React.useMemo(() => {
     if (!searchValue) return options
@@ -62,13 +92,18 @@ export function Combobox({
     onValueChange?.(firstOption.value)
     setOpen(false)
     setSearchValue("")
+    // 延遲一帧讓 Popover 完全關閉後再 focus 下一個元素
+    requestAnimationFrame(() => {
+      onSelectComplete?.()
+    })
     return true
-  }, [autoSelectFirstMatch, filteredOptions, onValueChange])
+  }, [autoSelectFirstMatch, filteredOptions, onValueChange, onSelectComplete])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -86,6 +121,7 @@ export function Combobox({
       <PopoverContent className="w-full p-0" align="start">
         <Command>
           <CommandInput
+            ref={inputRef}
             placeholder="搜尋使用者..."
             value={searchValue}
             onValueChange={setSearchValue}
@@ -108,6 +144,9 @@ export function Combobox({
                     onValueChange?.(option.value)
                     setOpen(false)
                     setSearchValue("")
+                    requestAnimationFrame(() => {
+                      onSelectComplete?.()
+                    })
                   }}
                 >
                   <Check
@@ -125,4 +164,6 @@ export function Combobox({
       </PopoverContent>
     </Popover>
   )
-}
+})
+
+Combobox.displayName = "Combobox"
