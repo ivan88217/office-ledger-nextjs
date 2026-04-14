@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentLogType {
+  EXPENSE_DEBT
+  EXPENSE_PREPAY_APPLY
+  PREPAYMENT
+  PREPAYMENT_REFUND
+  SETTLEMENT
+  ADJUSTMENT
+}
+
+enum PrepaymentRequestStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum PrepaymentRequestKind {
+  PREPAYMENT
+  REFUND
+}
+
+type TransactionParticipant {
+  userId         String @db.ObjectId
+  originalCents  Int
+  allocatedCents Int
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions          Session[]
+  transactionsPaid  Transaction[]    @relation("TransactionPayer")
+  paymentLogsFrom   PaymentLog[]     @relation("PaymentFrom")
+  paymentLogsTo     PaymentLog[]     @relation("PaymentTo")
+  prepaymentRequestsFrom PrepaymentRequest[] @relation("PrepaymentRequestFrom")
+  prepaymentRequestsTo   PrepaymentRequest[] @relation("PrepaymentRequestTo")
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String   @unique
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Transaction {
+  id           String                   @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  payerId      String                   @db.ObjectId
+  payer        User                     @relation("TransactionPayer", fields: [payerId], references: [id])
+  finalCents   Int
+  participants TransactionParticipant[]
+  createdAt    DateTime                 @default(now())
+
+  paymentLogs PaymentLog[]
+
+  @@index([payerId])
+  @@index([createdAt])
+}
+
+model PaymentLog {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  fromUserId    String          @db.ObjectId
+  toUserId      String          @db.ObjectId
+  amountCents   Int
+  type          PaymentLogType
+  transactionId String?         @db.ObjectId
+  transaction   Transaction?    @relation(fields: [transactionId], references: [id])
+  fromUser      User            @relation("PaymentFrom", fields: [fromUserId], references: [id])
+  toUser        User            @relation("PaymentTo", fields: [toUserId], references: [id])
+  note          String?
+  createdAt     DateTime        @default(now())
+
+  @@index([fromUserId, toUserId])
+  @@index([transactionId])
+  @@index([createdAt])
+}
+
+model PrepaymentRequest {
+  id         String                  @id @default(auto()) @map("_id") @db.ObjectId
+  fromUserId String                  @db.ObjectId
+  toUserId   String                  @db.ObjectId
+  amountCents Int
+  kind       PrepaymentRequestKind    @default(PREPAYMENT)
+  status     PrepaymentRequestStatus @default(PENDING)
+  createdByUserId String             @db.ObjectId
+  confirmedAt DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  fromUser User @relation("PrepaymentRequestFrom", fields: [fromUserId], references: [id])
+  toUser   User @relation("PrepaymentRequestTo", fields: [toUserId], references: [id])
+
+  @@index([fromUserId, toUserId, status])
+  @@index([toUserId, status, createdAt])
+}
