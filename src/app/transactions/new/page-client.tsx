@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { createExpenseTransactionAction } from '#/features/auth/actions'
 import { computeAllocations } from '#/features/ledger/domain/allocation'
 import { parseAdditionExpressionToCents } from '#/features/ledger/domain/parse-addition'
@@ -22,6 +22,7 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Separator } from '#/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#/components/ui/select'
+import { Combobox } from '#/components/ui/combobox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 
 type Row = { userId: string; userInput: string; expression: string }
@@ -136,7 +137,6 @@ export function NewTransactionForm({
   const [preview, setPreview] = useState<ExpensePreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const participantUserInputRefs = useRef<Array<HTMLInputElement | null>>([])
 
   useEffect(() => {
     if (users.length && !payerId) {
@@ -156,29 +156,18 @@ export function NewTransactionForm({
     setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)))
   }
 
-  function onParticipantUserInput(index: number, userInput: string) {
-    const matchedUser = users.find((user) => user.username === userInput)
-    updateRow(index, { userInput, userId: matchedUser?.id ?? '' })
-  }
-
-  function onParticipantUserInputTab(event: React.KeyboardEvent<HTMLInputElement>, rowIndex: number) {
-    if (event.key !== 'Tab' || event.shiftKey) return
-    const row = rows[rowIndex]
-    if (!row || row.userId) return
-
-    const keyword = row.userInput.trim().toLowerCase()
-    const firstMatchedUser = users.find((user) => user.username.toLowerCase().startsWith(keyword)) ?? users[0]
-    if (!firstMatchedUser) return
-    updateRow(rowIndex, { userId: firstMatchedUser.id, userInput: firstMatchedUser.username })
+  function handleUserSelect(index: number, userId: string) {
+    const selectedUser = users.find((u) => u.id === userId)
+    updateRow(index, {
+      userId,
+      userInput: selectedUser?.username ?? '',
+    })
   }
 
   function onExpressionInputTab(event: React.KeyboardEvent<HTMLInputElement>, rowIndex: number) {
     if (event.key !== 'Tab' || event.shiftKey || rowIndex !== rows.length - 1) return
     event.preventDefault()
     setRows((current) => [...current, { userId: '', userInput: '', expression: '' }])
-    requestAnimationFrame(() => {
-      participantUserInputRefs.current[rowIndex + 1]?.focus()
-    })
   }
 
   function onSubmit(event: React.FormEvent) {
@@ -270,7 +259,7 @@ export function NewTransactionForm({
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-medium">參與者</h2>
-                  <p className="text-sm text-muted-foreground">可直接輸入使用者名稱，`Tab` 會自動補齊。</p>
+                  <p className="text-sm text-muted-foreground">點擊選擇或直接輸入搜尋使用者名稱</p>
                 </div>
                 <Button type="button" variant="outline" onClick={addRow}>
                   新增一列
@@ -280,21 +269,29 @@ export function NewTransactionForm({
               <div className="space-y-3">
                 {rows.map((row, index) => (
                   <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_auto]">
-                    <Input
-                      ref={(element) => {
-                        participantUserInputRefs.current[index] = element
-                      }}
-                      value={row.userInput}
-                      onChange={(event) => onParticipantUserInput(index, event.target.value)}
-                      onKeyDown={(event) => onParticipantUserInputTab(event, index)}
-                      placeholder="使用者名稱"
-                    />
-                    <Input
-                      value={row.expression}
-                      onChange={(event) => updateRow(index, { expression: event.target.value })}
-                      onKeyDown={(event) => onExpressionInputTab(event, index)}
-                      placeholder="原始金額，例如 100+200"
-                    />
+                    <div className="space-y-2">
+                      <Label className="text-xs whitespace-nowrap">使用者</Label>
+                      <Combobox
+                        options={users.map((user) => ({
+                          value: user.id,
+                          label: user.username,
+                        }))}
+                        value={row.userId}
+                        onValueChange={(userId) => handleUserSelect(index, userId)}
+                        placeholder="選擇參與者..."
+                        emptyMessage="找不到符合的使用者"
+                        autoSelectFirstMatch={true}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs whitespace-nowrap">原始金額（元，可含 +）</Label>
+                      <Input
+                        value={row.expression}
+                        onChange={(event) => updateRow(index, { expression: event.target.value })}
+                        onKeyDown={(event) => onExpressionInputTab(event, index)}
+                        placeholder="250 或 50+20+15"
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
