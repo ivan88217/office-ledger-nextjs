@@ -88,7 +88,7 @@ export function TransactionDetailClient({
                       >
                         {pendingUserId === participant.userId
                           ? '銷帳中…'
-                          : `已付款 ${formatTwd(participant.settleableCents)}`}
+                          : `銷帳 ${formatTwd(participant.settleableCents)}`}
                       </Button>
                     </div>
                   ) : (
