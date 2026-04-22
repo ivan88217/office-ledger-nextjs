@@ -22,7 +22,7 @@ export default async function ColleaguesPage() {
         <Button asChild>
           <Link href="/colleagues/new">
             <UserPlus className="mr-2 h-4 w-4" />
-            新增同事
+            <span className="text-background">新增同事</span>
           </Link>
         </Button>
       </div>

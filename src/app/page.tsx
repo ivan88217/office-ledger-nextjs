@@ -19,7 +19,7 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>我欠他人（消費）</CardDescription>
+            <CardDescription>我欠他人</CardDescription>
             <CardTitle className="text-2xl text-destructive">
               {formatTwd(data.totalOwedByMeCents)}
             </CardTitle>
@@ -27,7 +27,7 @@ export default async function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>他人欠我（消費）</CardDescription>
+            <CardDescription>他人欠我</CardDescription>
             <CardTitle className="text-2xl">{formatTwd(data.totalOwedToMeCents)}</CardTitle>
           </CardHeader>
         </Card>
@@ -63,8 +63,8 @@ export default async function DashboardPage() {
                         ) : null}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatTwd(peer.theyOweMeCents)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatTwd(peer.iOweCents)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-yellow-500">{formatTwd(peer.theyOweMeCents)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-destructive">{formatTwd(peer.iOweCents)}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatTwd(peer.myPrepaymentBalanceCents)}
                     </TableCell>

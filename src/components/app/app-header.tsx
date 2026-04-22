@@ -7,7 +7,7 @@ const nav = [
   { href: '/', label: '總覽' },
   { href: '/transactions/new', label: '記帳' },
   { href: '/prepayments/new', label: '預付款' },
-  { href: '/settlements/new', label: '還款' },
+  // { href: '/settlements/new', label: '還款' },
   { href: '/colleagues', label: '同事' },
 ]
 

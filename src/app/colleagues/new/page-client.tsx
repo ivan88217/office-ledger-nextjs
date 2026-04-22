@@ -51,7 +51,7 @@ export function NewColleagueForm() {
     <main className="mx-auto max-w-lg space-y-6 px-4 py-8">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">新增同事</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-black">新增同事</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             建立後請把登入 Email 與密碼交給對方，我們不會再次顯示密碼。
           </p>
