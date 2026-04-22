@@ -24,13 +24,15 @@ export function TransactionDetailClient({
     setPendingUserId(userId)
     startTransition(async () => {
       try {
-        await settleTransactionParticipantAction({
+        const result = await settleTransactionParticipantAction({
           transactionId: transaction.id,
           participantUserId: userId,
         })
+        if (!result.ok) {
+          setError(result.message)
+          return
+        }
         router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '銷帳失敗')
       } finally {
         setPendingUserId(null)
       }

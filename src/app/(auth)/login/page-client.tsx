@@ -22,13 +22,13 @@ export function LoginForm() {
     setError(null)
 
     startTransition(async () => {
-      try {
-        await loginAction({ email, password })
-        router.push('/')
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '登入失敗')
+      const result = await loginAction({ email, password })
+      if (!result.ok) {
+        setError(result.message)
+        return
       }
+      router.push('/')
+      router.refresh()
     })
   }
 

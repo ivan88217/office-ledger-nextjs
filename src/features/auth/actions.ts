@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import * as authService from '#/features/auth/auth.service'
+import { runAction } from '#/lib/server-action/result'
 
 function revalidateLedgerPaths() {
   revalidatePath('/', 'layout')
@@ -18,17 +19,25 @@ export async function registerAction(input: {
   email: string
   password: string
 }) {
-  const result = await authService.registerUser(input)
-  revalidateLedgerPaths()
-  return result
+  return runAction(async () => {
+    const result = await authService.registerUser(input)
+    revalidateLedgerPaths()
+    return result
+  })
 }
 
 export async function loginAction(input: { email: string; password: string }) {
-  const result = await authService.loginUser(input)
-  revalidateLedgerPaths()
-  return result
+  return runAction(async () => {
+    const result = await authService.loginUser(input)
+    revalidateLedgerPaths()
+    return result
+  })
 }
 
+/**
+ * 供 <form action={...}> 使用，透過 redirect() 跳轉。
+ * redirect() 會丟出 NEXT_REDIRECT，不可被 runAction 吞掉，故維持原寫法。
+ */
 export async function logoutRedirectAction() {
   await authService.logoutUser()
   revalidatePath('/', 'layout')
@@ -36,13 +45,15 @@ export async function logoutRedirectAction() {
 }
 
 export async function logoutAction() {
-  const result = await authService.logoutUser()
-  revalidatePath('/', 'layout')
-  return result
+  return runAction(async () => {
+    const result = await authService.logoutUser()
+    revalidatePath('/', 'layout')
+    return result
+  })
 }
 
 export async function getPeerLedgerAction(input: { peerId: string }) {
-  return authService.getPeerLedger(input)
+  return runAction(() => authService.getPeerLedger(input))
 }
 
 export async function changePasswordAction(input: {
@@ -50,9 +61,11 @@ export async function changePasswordAction(input: {
   newPassword: string
   confirmPassword: string
 }) {
-  const result = await authService.changePassword(input)
-  revalidatePath('/settings/password')
-  return result
+  return runAction(async () => {
+    const result = await authService.changePassword(input)
+    revalidatePath('/settings/password')
+    return result
+  })
 }
 
 export async function createColleagueAction(input: {
@@ -60,9 +73,11 @@ export async function createColleagueAction(input: {
   password: string
   email?: string
 }) {
-  const result = await authService.createColleague(input)
-  revalidatePath('/colleagues')
-  return result
+  return runAction(async () => {
+    const result = await authService.createColleague(input)
+    revalidatePath('/colleagues')
+    return result
+  })
 }
 
 export async function createExpenseTransactionAction(input: {
@@ -71,10 +86,12 @@ export async function createExpenseTransactionAction(input: {
   finalCents: number
   participants: { userId: string; originalExpression: string; order: number }[]
 }) {
-  const result = await authService.createExpenseTransaction(input)
-  revalidateLedgerPaths()
-  revalidatePath(`/transactions/${result.transactionId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.createExpenseTransaction(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/transactions/${result.transactionId}`)
+    return result
+  })
 }
 
 export async function createPrepaymentEntryAction(input: {
@@ -82,64 +99,78 @@ export async function createPrepaymentEntryAction(input: {
   peerUserId: string
   amountCents: number
 }) {
-  const result = await authService.createPrepaymentEntry(input)
-  revalidateLedgerPaths()
-  return result
+  return runAction(async () => {
+    const result = await authService.createPrepaymentEntry(input)
+    revalidateLedgerPaths()
+    return result
+  })
 }
 
 export async function confirmPrepaymentRequestAction(input: { requestId: string; peerId?: string }) {
-  const result = await authService.confirmPrepaymentRequest({ requestId: input.requestId })
-  revalidateLedgerPaths()
-  if (input.peerId) revalidatePath(`/peers/${input.peerId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.confirmPrepaymentRequest({ requestId: input.requestId })
+    revalidateLedgerPaths()
+    if (input.peerId) revalidatePath(`/peers/${input.peerId}`)
+    return result
+  })
 }
 
 export async function createPrepaymentRefundRequestAction(input: {
   peerUserId: string
   amountCents: number
 }) {
-  const result = await authService.createPrepaymentRefundRequest(input)
-  revalidateLedgerPaths()
-  revalidatePath(`/peers/${input.peerUserId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.createPrepaymentRefundRequest(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/peers/${input.peerUserId}`)
+    return result
+  })
 }
 
 export async function recordPeerRefundToMeAction(input: {
   peerUserId: string
   amountCents: number
 }) {
-  const result = await authService.recordPeerRefundToMe(input)
-  revalidateLedgerPaths()
-  revalidatePath(`/peers/${input.peerUserId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.recordPeerRefundToMe(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/peers/${input.peerUserId}`)
+    return result
+  })
 }
 
 export async function createSettlementEntryAction(input: {
   toUserId: string
   amountCents: number
 }) {
-  const result = await authService.createSettlementEntry(input)
-  revalidateLedgerPaths()
-  revalidatePath(`/peers/${input.toUserId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.createSettlementEntry(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/peers/${input.toUserId}`)
+    return result
+  })
 }
 
 export async function settlePeerExpenseItemAction(input: {
   peerUserId: string
   debtLogId: string
 }) {
-  const result = await authService.settlePeerExpenseItem(input)
-  revalidateLedgerPaths()
-  revalidatePath(`/peers/${input.peerUserId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.settlePeerExpenseItem(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/peers/${input.peerUserId}`)
+    return result
+  })
 }
 
 export async function settleTransactionParticipantAction(input: {
   transactionId: string
   participantUserId: string
 }) {
-  const result = await authService.settleTransactionParticipant(input)
-  revalidateLedgerPaths()
-  revalidatePath(`/transactions/${input.transactionId}`)
-  return result
+  return runAction(async () => {
+    const result = await authService.settleTransactionParticipant(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/transactions/${input.transactionId}`)
+    return result
+  })
 }

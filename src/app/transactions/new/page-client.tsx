@@ -200,18 +200,18 @@ export function NewTransactionForm({
     setError(null)
 
     startTransition(async () => {
-      try {
-        const response = await createExpenseTransactionAction({
-          title: preview.title,
-          payerId: preview.payerId,
-          finalCents: preview.finalCents,
-          participants: preview.participants,
-        })
-        router.push(`/transactions/${response.transactionId}`)
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '建立失敗')
+      const response = await createExpenseTransactionAction({
+        title: preview.title,
+        payerId: preview.payerId,
+        finalCents: preview.finalCents,
+        participants: preview.participants,
+      })
+      if (!response.ok) {
+        setError(response.message)
+        return
       }
+      router.push(`/transactions/${response.data.transactionId}`)
+      router.refresh()
     })
   }
 

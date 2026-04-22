@@ -23,13 +23,13 @@ export function RegisterForm() {
     setError(null)
 
     startTransition(async () => {
-      try {
-        await registerAction({ username, email, password })
-        router.push('/')
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '註冊失敗')
+      const result = await registerAction({ username, email, password })
+      if (!result.ok) {
+        setError(result.message)
+        return
       }
+      router.push('/')
+      router.refresh()
     })
   }
 

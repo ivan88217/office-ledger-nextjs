@@ -22,15 +22,15 @@ export function ChangePasswordForm() {
     setSuccess(null)
 
     startTransition(async () => {
-      try {
-        await changePasswordAction({ currentPassword, newPassword, confirmPassword })
-        setCurrentPassword('')
-        setNewPassword('')
-        setConfirmPassword('')
-        setSuccess('密碼已更新。下次請用新密碼登入。')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '更新密碼失敗')
+      const result = await changePasswordAction({ currentPassword, newPassword, confirmPassword })
+      if (!result.ok) {
+        setError(result.message)
+        return
       }
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setSuccess('密碼已更新。下次請用新密碼登入。')
     })
   }
 

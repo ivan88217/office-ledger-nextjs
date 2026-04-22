@@ -44,10 +44,12 @@ export function PeerLedgerClient({
     setPendingConfirmId(requestId)
     startTransition(async () => {
       try {
-        await confirmPrepaymentRequestAction({ requestId, peerId: data.peer.id })
+        const result = await confirmPrepaymentRequestAction({ requestId, peerId: data.peer.id })
+        if (!result.ok) {
+          setConfirmError(result.message)
+          return
+        }
         refresh()
-      } catch (err) {
-        setConfirmError(err instanceof Error ? err.message : '確認失敗')
       } finally {
         setPendingConfirmId(null)
       }
@@ -61,15 +63,20 @@ export function PeerLedgerClient({
     startTransition(async () => {
       try {
         const yuan = Number(requestRefundYuan)
-        if (!Number.isInteger(yuan) || yuan <= 0) throw new Error('請輸入正整數金額（元）')
-        await createPrepaymentRefundRequestAction({
+        if (!Number.isInteger(yuan) || yuan <= 0) {
+          setRefundError('請輸入正整數金額（元）')
+          return
+        }
+        const result = await createPrepaymentRefundRequestAction({
           peerUserId: data.peer.id,
           amountCents: yuanToCents(yuan),
         })
+        if (!result.ok) {
+          setRefundError(result.message)
+          return
+        }
         setRequestRefundYuan('')
         refresh()
-      } catch (err) {
-        setRefundError(err instanceof Error ? err.message : '送出失敗')
       } finally {
         setRefundActionPending(null)
       }
@@ -83,15 +90,20 @@ export function PeerLedgerClient({
     startTransition(async () => {
       try {
         const yuan = Number(recordRefundYuan)
-        if (!Number.isInteger(yuan) || yuan <= 0) throw new Error('請輸入正整數金額（元）')
-        await recordPeerRefundToMeAction({
+        if (!Number.isInteger(yuan) || yuan <= 0) {
+          setRefundError('請輸入正整數金額（元）')
+          return
+        }
+        const result = await recordPeerRefundToMeAction({
           peerUserId: data.peer.id,
           amountCents: yuanToCents(yuan),
         })
+        if (!result.ok) {
+          setRefundError(result.message)
+          return
+        }
         setRecordRefundYuan('')
         refresh()
-      } catch (err) {
-        setRefundError(err instanceof Error ? err.message : '入帳失敗')
       } finally {
         setRefundActionPending(null)
       }
@@ -103,10 +115,12 @@ export function PeerLedgerClient({
     setPendingDebtLogId(debtLogId)
     startTransition(async () => {
       try {
-        await settlePeerExpenseItemAction({ peerUserId: data.peer.id, debtLogId })
+        const result = await settlePeerExpenseItemAction({ peerUserId: data.peer.id, debtLogId })
+        if (!result.ok) {
+          setSettlementError(result.message)
+          return
+        }
         refresh()
-      } catch (err) {
-        setSettlementError(err instanceof Error ? err.message : '銷帳失敗')
       } finally {
         setPendingDebtLogId(null)
       }

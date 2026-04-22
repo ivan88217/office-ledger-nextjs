@@ -27,23 +27,23 @@ export function NewColleagueForm() {
     setSuccess(null)
 
     startTransition(async () => {
-      try {
-        const result = await createColleagueAction({
-          username,
-          password,
-          email: email.trim() || undefined,
-        })
-        setSuccess({
-          username: result.username,
-          email: result.email,
-          emailWasGenerated: result.emailWasGenerated,
-        })
-        setUsername('')
-        setEmail('')
-        setPassword('')
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '建立失敗')
+      const result = await createColleagueAction({
+        username,
+        password,
+        email: email.trim() || undefined,
+      })
+      if (!result.ok) {
+        setError(result.message)
+        return
       }
+      setSuccess({
+        username: result.data.username,
+        email: result.data.email,
+        emailWasGenerated: result.data.emailWasGenerated,
+      })
+      setUsername('')
+      setEmail('')
+      setPassword('')
     })
   }
 

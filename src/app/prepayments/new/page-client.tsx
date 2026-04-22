@@ -42,25 +42,29 @@ export function NewPrepaymentForm({
     setNotice(null)
 
     startTransition(async () => {
-      try {
-        const yuan = Number(amountYuan)
-        if (!Number.isInteger(yuan) || yuan <= 0) throw new Error('請輸入正整數金額（元）')
-
-        const result = await createPrepaymentEntryAction({
-          direction,
-          peerUserId,
-          amountCents: yuanToCents(yuan),
-        })
-
-        if (result.requiresConfirmation) {
-          setNotice('已送出待對方確認，對方確認後才會正式入帳。')
-        } else {
-          router.push('/')
-        }
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '建立失敗')
+      const yuan = Number(amountYuan)
+      if (!Number.isInteger(yuan) || yuan <= 0) {
+        setError('請輸入正整數金額（元）')
+        return
       }
+
+      const result = await createPrepaymentEntryAction({
+        direction,
+        peerUserId,
+        amountCents: yuanToCents(yuan),
+      })
+
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+
+      if (result.data.requiresConfirmation) {
+        setNotice('已送出待對方確認，對方確認後才會正式入帳。')
+      } else {
+        router.push('/')
+      }
+      router.refresh()
     })
   }
 

@@ -41,13 +41,13 @@ export function NewSettlementForm({
     }
     let cancelled = false
     ;(async () => {
-      try {
-        const data = await getPeerLedgerAction({ peerId: toUserId })
-        if (cancelled) return
-        setMaxOweCents(data.expenseCents < 0 ? -data.expenseCents : 0)
-      } catch {
-        if (!cancelled) setMaxOweCents(null)
+      const result = await getPeerLedgerAction({ peerId: toUserId })
+      if (cancelled) return
+      if (!result.ok) {
+        setMaxOweCents(null)
+        return
       }
+      setMaxOweCents(result.data.iOweCents)
     })()
     return () => {
       cancelled = true
@@ -59,19 +59,23 @@ export function NewSettlementForm({
     setError(null)
 
     startTransition(async () => {
-      try {
-        const yuan = Number(amountYuan)
-        if (!Number.isInteger(yuan) || yuan <= 0) throw new Error('請輸入正整數金額（元）')
-        const cents = yuanToCents(yuan)
-        if (maxOweCents !== null && cents > maxOweCents) {
-          throw new Error('還款金額不可超過目前消費欠款')
-        }
-        await createSettlementEntryAction({ toUserId, amountCents: cents })
-        router.push('/')
-        router.refresh()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '建立失敗')
+      const yuan = Number(amountYuan)
+      if (!Number.isInteger(yuan) || yuan <= 0) {
+        setError('請輸入正整數金額（元）')
+        return
       }
+      const cents = yuanToCents(yuan)
+      if (maxOweCents !== null && cents > maxOweCents) {
+        setError('還款金額不可超過目前消費欠款')
+        return
+      }
+      const result = await createSettlementEntryAction({ toUserId, amountCents: cents })
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+      router.push('/')
+      router.refresh()
     })
   }
 
