@@ -589,10 +589,58 @@ export async function getDashboard() {
     },
   })
 
+  // 由自己墊款的交易列表：以目前登入者為 payer 的所有交易，並逐筆計算尚未收回的金額。
+  const paidTransactionRecords = await prisma.transaction.findMany({
+    where: { payerId: userId },
+    select: {
+      id: true,
+      title: true,
+      finalCents: true,
+      createdAt: true,
+      participants: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  // reconcileReceivableExpenseItems 僅需要 fromUser=debtor / toUser=creditor 的 log，
+  // 這邊預先過濾出「別人要還給我」的紀錄，避免之後多次重算。
+  const incomingCreditLogs = pairLogs.filter((log) => log.toUserId === userId)
+
+  const paidTransactions = paidTransactionRecords.map((transaction) => {
+    const nonPayerParticipants = transaction.participants.filter(
+      (participant) => participant.userId !== userId,
+    )
+    const totalOwedByOthersCents = nonPayerParticipants.reduce(
+      (sum, participant) => sum + participant.allocatedCents,
+      0,
+    )
+    const outstandingCents = nonPayerParticipants.reduce(
+      (sum, participant) =>
+        sum +
+        getRemainingTransactionDebtCents({
+          debtorId: participant.userId,
+          creditorId: userId,
+          transactionId: transaction.id,
+          logs: incomingCreditLogs,
+        }),
+      0,
+    )
+    return {
+      id: transaction.id,
+      title: transaction.title,
+      finalCents: transaction.finalCents,
+      createdAt: transaction.createdAt.toISOString(),
+      participantCount: transaction.participants.length,
+      totalOwedByOthersCents,
+      outstandingCents,
+    }
+  })
+
   return {
     totalOwedByMeCents: totalOwedByMe,
     totalOwedToMeCents: totalOwedToMe,
     peers,
+    paidTransactions,
     recentLogs: recentLogs.map((log) => ({
       id: log.id,
       type: log.type,

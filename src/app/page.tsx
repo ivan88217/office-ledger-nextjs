@@ -81,8 +81,64 @@ export default async function DashboardPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>我墊款的交易</CardTitle>
+          <CardDescription>以你作為付款人的所有交易，可逐筆追蹤回收狀況</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.paidTransactions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">你目前沒有墊款交易。</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>交易</TableHead>
+                  <TableHead>日期</TableHead>
+                  <TableHead className="text-right">總金額</TableHead>
+                  <TableHead className="text-right">別人應還</TableHead>
+                  <TableHead className="text-right">尚未收回</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.paidTransactions.map((transaction) => {
+                  const isSettled = transaction.outstandingCents === 0
+                  return (
+                    <TableRow key={transaction.id}>
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/transactions/${transaction.id}`}
+                          className="flex items-center gap-2 hover:underline"
+                        >
+                          <span>{transaction.title}</span>
+                          {isSettled ? (
+                            <Badge variant="secondary">已結清</Badge>
+                          ) : null}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(transaction.createdAt).toLocaleDateString('zh-TW')}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{formatTwd(transaction.finalCents)}</TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {formatTwd(transaction.totalOwedByOthersCents)}
+                      </TableCell>
+                      <TableCell
+                        className={`text-right tabular-nums ${isSettled ? 'text-muted-foreground' : 'text-yellow-500'}`}
+                      >
+                        {formatTwd(transaction.outstandingCents)}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>我代墊待還款</CardTitle>
-          <CardDescription>欠你的消費款項</CardDescription>
+          <CardDescription>依同事彙總尚未收回的消費款項</CardDescription>
         </CardHeader>
         <CardContent>
           {data.peers.filter((peer) => peer.theyOweMeCents > 0).length === 0 ? (
