@@ -156,46 +156,82 @@ export function PeerLedgerClient({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>代墊待還款款項</CardTitle>
-          <CardDescription>可逐筆按已還款，不需一次全還</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {settlementError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{settlementError}</AlertDescription>
-            </Alert>
-          ) : null}
-          {data.receivableExpenseItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">目前沒有待銷帳款項。</p>
-          ) : (
-            data.receivableExpenseItems.map((item) => (
-              <div key={item.debtLogId} className="flex items-center justify-between rounded-md border p-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium tabular-nums">{formatTwd(item.remainingCents)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {item.transactionId ? (
-                      <Link href={`/transactions/${item.transactionId}`} className="text-primary hover:underline">
-                        {item.transactionTitle ?? '交易'}
-                      </Link>
-                    ) : (
-                      '交易'
-                    )}
-                  </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>他欠我的款項</CardTitle>
+            <CardDescription>我代墊的每筆尚未收回金額，可逐筆銷帳</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {settlementError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{settlementError}</AlertDescription>
+              </Alert>
+            ) : null}
+            {data.receivableExpenseItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">目前沒有待銷帳款項。</p>
+            ) : (
+              data.receivableExpenseItems.map((item) => (
+                <div key={item.debtLogId} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium tabular-nums">{formatTwd(item.remainingCents)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.transactionId ? (
+                        <Link href={`/transactions/${item.transactionId}`} className="text-primary hover:underline">
+                          {item.transactionTitle ?? '交易'}
+                        </Link>
+                      ) : (
+                        '交易'
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => onSettleExpenseItem(item.debtLogId)}
+                    disabled={pendingDebtLogId === item.debtLogId}
+                  >
+                    {pendingDebtLogId === item.debtLogId ? '銷帳中…' : '已還款'}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => onSettleExpenseItem(item.debtLogId)}
-                  disabled={pendingDebtLogId === item.debtLogId}
-                >
-                  {pendingDebtLogId === item.debtLogId ? '銷帳中…' : '已還款'}
-                </Button>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>我欠他的款項</CardTitle>
+            <CardDescription>對方代墊的每筆尚未還清金額（僅供檢視）</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.payableExpenseItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">目前沒有欠對方的款項。</p>
+            ) : (
+              data.payableExpenseItems.map((item) => (
+                <div key={item.debtLogId} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium tabular-nums">{formatTwd(item.remainingCents)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.transactionId ? (
+                        <Link href={`/transactions/${item.transactionId}`} className="text-primary hover:underline">
+                          {item.transactionTitle ?? '交易'}
+                        </Link>
+                      ) : (
+                        '交易'
+                      )}
+                    </p>
+                  </div>
+                  {item.originalCents !== item.remainingCents ? (
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      原 {formatTwd(item.originalCents)}
+                    </p>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

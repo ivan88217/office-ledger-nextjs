@@ -689,10 +689,17 @@ export async function getPeerLedger(input: { peerId: string }) {
 
   const logsForDisplay = allLogs.slice(0, 100) // 最新的 100 筆
 
-  const debtAndSettlementLogs = allLogs.filter(
+  const incomingDebtAndSettlementLogs = allLogs.filter(
     (log) =>
       log.fromUserId === input.peerId &&
       log.toUserId === userId &&
+      ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'].includes(log.type)
+  )
+
+  const outgoingDebtAndSettlementLogs = allLogs.filter(
+    (log) =>
+      log.fromUserId === userId &&
+      log.toUserId === input.peerId &&
       ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'].includes(log.type)
   )
 
@@ -702,28 +709,45 @@ export async function getPeerLedger(input: { peerId: string }) {
     logs: pairLogs,
   })
 
-  // 3. 計算 receivableExpenseItems
-  const debtMetaById = new Map(
-    debtAndSettlementLogs
-      .filter((log) => log.type === 'EXPENSE_DEBT')
-      .map((log) => [
-        log.id,
-        {
-          transactionTitle: log.transaction?.title ?? null,
-          createdAt: log.createdAt.toISOString(),
-        },
-      ]),
-  )
+  // 3. 計算每筆消費欠款餘額（雙向各自獨立）
+  const buildDebtMeta = (logs: typeof allLogs) =>
+    new Map(
+      logs
+        .filter((log) => log.type === 'EXPENSE_DEBT')
+        .map((log) => [
+          log.id,
+          {
+            transactionTitle: log.transaction?.title ?? null,
+            createdAt: log.createdAt.toISOString(),
+          },
+        ]),
+    )
+
+  const incomingDebtMetaById = buildDebtMeta(incomingDebtAndSettlementLogs)
+  const outgoingDebtMetaById = buildDebtMeta(outgoingDebtAndSettlementLogs)
 
   const receivableExpenseItems = reconcileReceivableExpenseItems({
     debtorId: input.peerId,
     creditorId: userId,
-    logs: debtAndSettlementLogs,
+    logs: incomingDebtAndSettlementLogs,
   }).map((item) => ({
     debtLogId: item.debtLogId,
     transactionId: item.transactionId,
-    transactionTitle: debtMetaById.get(item.debtLogId)?.transactionTitle ?? null,
-    createdAt: debtMetaById.get(item.debtLogId)?.createdAt ?? new Date(0).toISOString(),
+    transactionTitle: incomingDebtMetaById.get(item.debtLogId)?.transactionTitle ?? null,
+    createdAt: incomingDebtMetaById.get(item.debtLogId)?.createdAt ?? new Date(0).toISOString(),
+    originalCents: item.originalCents,
+    remainingCents: item.remainingCents,
+  }))
+
+  const payableExpenseItems = reconcileReceivableExpenseItems({
+    debtorId: userId,
+    creditorId: input.peerId,
+    logs: outgoingDebtAndSettlementLogs,
+  }).map((item) => ({
+    debtLogId: item.debtLogId,
+    transactionId: item.transactionId,
+    transactionTitle: outgoingDebtMetaById.get(item.debtLogId)?.transactionTitle ?? null,
+    createdAt: outgoingDebtMetaById.get(item.debtLogId)?.createdAt ?? new Date(0).toISOString(),
     originalCents: item.originalCents,
     remainingCents: item.remainingCents,
   }))
@@ -777,6 +801,9 @@ export async function getPeerLedger(input: { peerId: string }) {
     effectiveNetCents: pairSummary.effectiveNetCents,
     pendingIncomingPrepayments,
     receivableExpenseItems: receivableExpenseItems.sort((a, b) =>
+      a.createdAt < b.createdAt ? 1 : -1,
+    ),
+    payableExpenseItems: payableExpenseItems.sort((a, b) =>
       a.createdAt < b.createdAt ? 1 : -1,
     ),
     logs: logsForDisplay.map((log) => ({
