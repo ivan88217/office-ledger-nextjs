@@ -7,6 +7,7 @@ import {
   confirmPrepaymentRequestAction,
   createPrepaymentRefundRequestAction,
   recordPeerRefundToMeAction,
+  reverseSettlementLogAction,
   settlePeerExpenseItemAction,
 } from '#/features/auth/actions'
 import { paymentTypeLabel } from '#/features/ledger/type-label'
@@ -33,6 +34,8 @@ export function PeerLedgerClient({
   const [pendingConfirmId, setPendingConfirmId] = useState<string | null>(null)
   const [pendingDebtLogId, setPendingDebtLogId] = useState<string | null>(null)
   const [refundActionPending, setRefundActionPending] = useState<null | 'request' | 'record'>(null)
+  const [pendingReverseLogId, setPendingReverseLogId] = useState<string | null>(null)
+  const [reverseError, setReverseError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   function refresh() {
@@ -106,6 +109,24 @@ export function PeerLedgerClient({
         refresh()
       } finally {
         setRefundActionPending(null)
+      }
+    })
+  }
+
+  function onReverseSettlement(logId: string) {
+    if (!globalThis.confirm('確定要沖銷這筆銷帳紀錄嗎？欠款會恢復為未結清狀態。')) return
+    setReverseError(null)
+    setPendingReverseLogId(logId)
+    startTransition(async () => {
+      try {
+        const result = await reverseSettlementLogAction({ logId, peerUserId: data.peer.id })
+        if (!result.ok) {
+          setReverseError(result.message)
+          return
+        }
+        refresh()
+      } finally {
+        setPendingReverseLogId(null)
       }
     })
   }
@@ -326,36 +347,61 @@ export function PeerLedgerClient({
       <Card>
         <CardHeader>
           <CardTitle>往來紀錄</CardTitle>
+          <CardDescription>銷帳紀錄如按錯可按「沖銷」還原</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {reverseError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{reverseError}</AlertDescription>
+            </Alert>
+          ) : null}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>類型</TableHead>
                 <TableHead>說明</TableHead>
                 <TableHead className="text-right">金額</TableHead>
+                <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <Badge variant="secondary">{paymentTypeLabel(log.type)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {log.note ?? '—'}
-                    {log.transactionId ? (
-                      <>
-                        {' · '}
-                        <Link href={`/transactions/${log.transactionId}`} className="text-primary hover:underline">
-                          {log.transactionTitle ?? '交易'}
-                        </Link>
-                      </>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatTwd(log.amountCents)}</TableCell>
-                </TableRow>
-              ))}
+              {data.logs.map((log) => {
+                const canReverse =
+                  log.type === 'SETTLEMENT' &&
+                  log.note !== '預付款沖抵消費欠款' &&
+                  !log.isReversed
+                return (
+                  <TableRow key={log.id}>
+                    <TableCell>
+                      <Badge variant="secondary">{paymentTypeLabel(log.type)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {log.note ?? '—'}
+                      {log.transactionId ? (
+                        <>
+                          {' · '}
+                          <Link href={`/transactions/${log.transactionId}`} className="text-primary hover:underline">
+                            {log.transactionTitle ?? '交易'}
+                          </Link>
+                        </>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{formatTwd(log.amountCents)}</TableCell>
+                    <TableCell className="text-right">
+                      {canReverse ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onReverseSettlement(log.id)}
+                          disabled={pendingReverseLogId === log.id}
+                        >
+                          {pendingReverseLogId === log.id ? '沖銷中…' : '沖銷'}
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>

@@ -21,6 +21,7 @@ import {
   applyPrepayment,
   applyPrepaymentRefund,
   applySettlement,
+  applySettlementReversal,
 } from '#/features/ledger/server/ledger.service.server'
 import { yuanToCents } from '#/lib/money/dollars'
 
@@ -426,7 +427,7 @@ export async function settlePeerExpenseItem(input: { peerUserId: string; debtLog
       where: {
         fromUserId: input.peerUserId,
         toUserId: userId,
-        type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'] },
+        type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY', 'SETTLEMENT_REVERSAL'] },
       },
       orderBy: { createdAt: 'asc' },
     })
@@ -446,6 +447,30 @@ export async function settlePeerExpenseItem(input: { peerUserId: string; debtLog
       amountCents: targetItem.remainingCents,
       transactionId: targetItem.transactionId ?? null,
     })
+  })
+
+  return { ok: true as const }
+}
+
+export async function reverseSettlementLog(input: { logId: string }) {
+  const userId = await resolveSessionUserId()
+  if (!userId) throw new Error('請先登入')
+
+  const log = await prisma.paymentLog.findUnique({ where: { id: input.logId } })
+  if (!log) throw new Error('找不到此紀錄')
+  if (log.fromUserId !== userId && log.toUserId !== userId) {
+    throw new Error('無權沖銷此紀錄')
+  }
+  if (log.type !== 'SETTLEMENT') {
+    throw new Error('僅能沖銷銷帳類紀錄')
+  }
+  // 預付款自動沖抵產生的 SETTLEMENT 與 PREPAYMENT 綁在一起，不適合單獨沖銷
+  if (log.note === '預付款沖抵消費欠款') {
+    throw new Error('此筆為預付款自動沖抵，請改沖銷對應的預付款紀錄')
+  }
+
+  await prisma.$transaction(async (ptx) => {
+    await applySettlementReversal(ptx, { originalLogId: input.logId })
   })
 
   return { ok: true as const }
@@ -473,7 +498,7 @@ export async function settleTransactionParticipant(input: {
       where: {
         fromUserId: input.participantUserId,
         toUserId: tx.payerId,
-        type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'] },
+        type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY', 'SETTLEMENT_REVERSAL'] },
       },
       select: {
         id: true,
@@ -482,6 +507,7 @@ export async function settleTransactionParticipant(input: {
         amountCents: true,
         type: true,
         transactionId: true,
+        reversesLogId: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -531,6 +557,7 @@ export async function getDashboard() {
       type: true,
       amountCents: true,
       transactionId: true,
+      reversesLogId: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },
@@ -689,18 +716,25 @@ export async function getPeerLedger(input: { peerId: string }) {
 
   const logsForDisplay = allLogs.slice(0, 100) // 最新的 100 筆
 
+  const reconcileTypes = new Set([
+    'EXPENSE_DEBT',
+    'SETTLEMENT',
+    'EXPENSE_PREPAY_APPLY',
+    'SETTLEMENT_REVERSAL',
+  ])
+
   const incomingDebtAndSettlementLogs = allLogs.filter(
     (log) =>
       log.fromUserId === input.peerId &&
       log.toUserId === userId &&
-      ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'].includes(log.type)
+      reconcileTypes.has(log.type)
   )
 
   const outgoingDebtAndSettlementLogs = allLogs.filter(
     (log) =>
       log.fromUserId === userId &&
       log.toUserId === input.peerId &&
-      ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'].includes(log.type)
+      reconcileTypes.has(log.type)
   )
 
   const pairSummary = summarizePairLedger({
@@ -816,6 +850,12 @@ export async function getPeerLedger(input: { peerId: string }) {
       transactionId: log.transactionId,
       transactionTitle: log.transaction?.title ?? null,
       note: log.note,
+      reversesLogId: log.reversesLogId,
+      // 標記此筆 SETTLEMENT 是否已被 SETTLEMENT_REVERSAL 沖銷，供前端控制按鈕顯示
+      isReversed: allLogs.some(
+        (candidate) =>
+          candidate.type === 'SETTLEMENT_REVERSAL' && candidate.reversesLogId === log.id,
+      ),
     })),
   }
 }
@@ -849,7 +889,7 @@ export async function getTransactionDetail(input: { transactionId: string }) {
     where: {
       fromUserId: { in: participantIds.filter((id) => id !== transaction.payerId) },
       toUserId: transaction.payerId,
-      type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY'] },
+      type: { in: ['EXPENSE_DEBT', 'SETTLEMENT', 'EXPENSE_PREPAY_APPLY', 'SETTLEMENT_REVERSAL'] },
     },
     select: {
       id: true,
@@ -858,6 +898,7 @@ export async function getTransactionDetail(input: { transactionId: string }) {
       amountCents: true,
       type: true,
       transactionId: true,
+      reversesLogId: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },

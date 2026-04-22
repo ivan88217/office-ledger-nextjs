@@ -13,6 +13,7 @@ enum PaymentLogType {
   PREPAYMENT
   PREPAYMENT_REFUND
   SETTLEMENT
+  SETTLEMENT_REVERSAL
   ADJUSTMENT
 }
 
@@ -86,11 +87,13 @@ model PaymentLog {
   fromUser      User            @relation("PaymentFrom", fields: [fromUserId], references: [id])
   toUser        User            @relation("PaymentTo", fields: [toUserId], references: [id])
   note          String?
+  reversesLogId String?         @db.ObjectId
   createdAt     DateTime        @default(now())
 
   @@index([fromUserId, toUserId])
   @@index([transactionId])
   @@index([createdAt])
+  @@index([reversesLogId])
 }
 
 model PrepaymentRequest {

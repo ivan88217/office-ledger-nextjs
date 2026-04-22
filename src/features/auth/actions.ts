@@ -163,6 +163,20 @@ export async function settlePeerExpenseItemAction(input: {
   })
 }
 
+export async function reverseSettlementLogAction(input: {
+  logId: string
+  peerUserId?: string
+}) {
+  return runAction(async () => {
+    const result = await authService.reverseSettlementLog({ logId: input.logId })
+    revalidateLedgerPaths()
+    if (input.peerUserId) {
+      revalidatePath(`/peers/${input.peerUserId}`)
+    }
+    return result
+  })
+}
+
 export async function settleTransactionParticipantAction(input: {
   transactionId: string
   participantUserId: string

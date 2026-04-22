@@ -4,6 +4,7 @@ export type LedgerLogType =
   | 'PREPAYMENT'
   | 'PREPAYMENT_REFUND'
   | 'SETTLEMENT'
+  | 'SETTLEMENT_REVERSAL'
   | 'ADJUSTMENT'
 
 export type LedgerLog = {
@@ -13,6 +14,7 @@ export type LedgerLog = {
   amountCents: number
   type: LedgerLogType
   transactionId?: string | null
+  reversesLogId?: string | null
   createdAt?: Date | string
 }
 
@@ -69,6 +71,7 @@ export function summarizePairLedger(params: {
     if (isForward) {
       if (log.type === 'EXPENSE_DEBT') iOweExpenseRawCents += log.amountCents
       if (log.type === 'SETTLEMENT') iOweExpenseRawCents -= log.amountCents
+      if (log.type === 'SETTLEMENT_REVERSAL') iOweExpenseRawCents += log.amountCents
       if (log.type === 'PREPAYMENT') myPrepaymentBalanceCents += log.amountCents
       if (log.type === 'EXPENSE_PREPAY_APPLY') myPrepaymentBalanceCents -= log.amountCents
       if (log.type === 'PREPAYMENT_REFUND') peerPrepaymentBalanceCents -= log.amountCents
@@ -77,6 +80,7 @@ export function summarizePairLedger(params: {
 
     if (log.type === 'EXPENSE_DEBT') theyOweMeExpenseRawCents += log.amountCents
     if (log.type === 'SETTLEMENT') theyOweMeExpenseRawCents -= log.amountCents
+    if (log.type === 'SETTLEMENT_REVERSAL') theyOweMeExpenseRawCents += log.amountCents
     if (log.type === 'PREPAYMENT') peerPrepaymentBalanceCents += log.amountCents
     if (log.type === 'EXPENSE_PREPAY_APPLY') peerPrepaymentBalanceCents -= log.amountCents
     if (log.type === 'PREPAYMENT_REFUND') myPrepaymentBalanceCents -= log.amountCents
@@ -106,9 +110,18 @@ export function reconcileReceivableExpenseItems(params: {
   const { debtorId, creditorId, logs } = params
   const receivableItems: ReceivableExpenseItem[] = []
 
+  // 被沖銷的 SETTLEMENT 不再計入，沖正紀錄本身僅留存稽核用
+  const reversedLogIds = new Set<string>()
+  for (const log of logs) {
+    if (log.type === 'SETTLEMENT_REVERSAL' && log.reversesLogId) {
+      reversedLogIds.add(log.reversesLogId)
+    }
+  }
+
   for (const log of sortByCreatedAt(logs)) {
     if (log.fromUserId !== debtorId || log.toUserId !== creditorId) continue
     if (!['EXPENSE_DEBT', 'EXPENSE_PREPAY_APPLY', 'SETTLEMENT'].includes(log.type)) continue
+    if (log.id && reversedLogIds.has(log.id)) continue
 
     if (log.type === 'EXPENSE_DEBT') {
       receivableItems.push({

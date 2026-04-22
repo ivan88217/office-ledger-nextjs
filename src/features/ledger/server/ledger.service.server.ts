@@ -22,6 +22,7 @@ async function listPairLogs(tx: Tx, userId: string, peerId: string) {
       amountCents: true,
       type: true,
       transactionId: true,
+      reversesLogId: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },
@@ -149,6 +150,43 @@ export async function applyPrepaymentRefund(
       amountCents,
       type: PaymentLogType.PREPAYMENT_REFUND,
       note: '返還預付款',
+    },
+  })
+}
+
+/**
+ * 沖正銷帳：以一筆新的 SETTLEMENT_REVERSAL 紀錄沖掉既有的 SETTLEMENT，
+ * 保留原紀錄以供稽核。amountCents/direction 與原 SETTLEMENT 相同。
+ */
+export async function applySettlementReversal(
+  tx: Tx,
+  params: { originalLogId: string; reason?: string },
+): Promise<void> {
+  const { originalLogId, reason } = params
+
+  const original = await tx.paymentLog.findUnique({ where: { id: originalLogId } })
+  if (!original) throw new Error('找不到要沖銷的銷帳紀錄')
+  if (original.type !== PaymentLogType.SETTLEMENT) {
+    throw new Error('僅能沖銷銷帳類紀錄')
+  }
+
+  const existingReversal = await tx.paymentLog.findFirst({
+    where: { reversesLogId: originalLogId, type: PaymentLogType.SETTLEMENT_REVERSAL },
+    select: { id: true },
+  })
+  if (existingReversal) {
+    throw new Error('此筆銷帳已被沖銷過')
+  }
+
+  await tx.paymentLog.create({
+    data: {
+      fromUserId: original.fromUserId,
+      toUserId: original.toUserId,
+      amountCents: original.amountCents,
+      type: PaymentLogType.SETTLEMENT_REVERSAL,
+      transactionId: original.transactionId,
+      reversesLogId: original.id,
+      note: reason ?? '沖銷還款',
     },
   })
 }

@@ -10,6 +10,8 @@ export function paymentTypeLabel(type: string) {
       return '預付返還'
     case 'SETTLEMENT':
       return '還款'
+    case 'SETTLEMENT_REVERSAL':
+      return '沖銷還款'
     case 'ADJUSTMENT':
       return '調整'
     default:
