@@ -53,7 +53,10 @@ export function summarizePairLedger(params: {
 }): PairLedgerSummary {
   const { userId, peerId, logs } = params
 
-  let expenseBalanceCents = 0
+  // 分別追蹤雙向欠款：帳務上「我欠他」與「他欠我」屬於兩回事，
+  // 不能在 summary 層就互相抵銷，否則會造成銷帳時誤判為超額。
+  let iOweExpenseRawCents = 0
+  let theyOweMeExpenseRawCents = 0
   let myPrepaymentBalanceCents = 0
   let peerPrepaymentBalanceCents = 0
 
@@ -64,33 +67,34 @@ export function summarizePairLedger(params: {
     if (!isForward && !isReverse) continue
 
     if (isForward) {
-      if (log.type === 'EXPENSE_DEBT') expenseBalanceCents -= log.amountCents
-      if (log.type === 'SETTLEMENT') expenseBalanceCents += log.amountCents
+      if (log.type === 'EXPENSE_DEBT') iOweExpenseRawCents += log.amountCents
+      if (log.type === 'SETTLEMENT') iOweExpenseRawCents -= log.amountCents
       if (log.type === 'PREPAYMENT') myPrepaymentBalanceCents += log.amountCents
       if (log.type === 'EXPENSE_PREPAY_APPLY') myPrepaymentBalanceCents -= log.amountCents
       if (log.type === 'PREPAYMENT_REFUND') peerPrepaymentBalanceCents -= log.amountCents
       continue
     }
 
-    if (log.type === 'EXPENSE_DEBT') expenseBalanceCents += log.amountCents
-    if (log.type === 'SETTLEMENT') expenseBalanceCents -= log.amountCents
+    if (log.type === 'EXPENSE_DEBT') theyOweMeExpenseRawCents += log.amountCents
+    if (log.type === 'SETTLEMENT') theyOweMeExpenseRawCents -= log.amountCents
     if (log.type === 'PREPAYMENT') peerPrepaymentBalanceCents += log.amountCents
     if (log.type === 'EXPENSE_PREPAY_APPLY') peerPrepaymentBalanceCents -= log.amountCents
     if (log.type === 'PREPAYMENT_REFUND') myPrepaymentBalanceCents -= log.amountCents
   }
 
-  const iConsumedFromPeer = Math.max(0, -expenseBalanceCents)
-  const theyConsumedFromMe = Math.max(0, expenseBalanceCents)
+  const iOweRawCents = Math.max(0, iOweExpenseRawCents)
+  const theyOweMeRawCents = Math.max(0, theyOweMeExpenseRawCents)
   const myPrepaymentRawCents = Math.max(0, myPrepaymentBalanceCents)
   const peerPrepaymentRawCents = Math.max(0, peerPrepaymentBalanceCents)
 
   return {
-    expenseBalanceCents,
-    myPrepaymentBalanceCents: Math.max(0, myPrepaymentRawCents - iConsumedFromPeer),
-    peerPrepaymentBalanceCents: Math.max(0, peerPrepaymentRawCents - theyConsumedFromMe),
-    iOweCents: Math.max(0, iConsumedFromPeer - myPrepaymentRawCents),
-    theyOweMeCents: Math.max(0, theyConsumedFromMe - peerPrepaymentRawCents),
-    effectiveNetCents: expenseBalanceCents + myPrepaymentRawCents - peerPrepaymentRawCents,
+    expenseBalanceCents: theyOweMeRawCents - iOweRawCents,
+    myPrepaymentBalanceCents: Math.max(0, myPrepaymentRawCents - iOweRawCents),
+    peerPrepaymentBalanceCents: Math.max(0, peerPrepaymentRawCents - theyOweMeRawCents),
+    iOweCents: Math.max(0, iOweRawCents - myPrepaymentRawCents),
+    theyOweMeCents: Math.max(0, theyOweMeRawCents - peerPrepaymentRawCents),
+    effectiveNetCents:
+      theyOweMeRawCents - iOweRawCents + myPrepaymentRawCents - peerPrepaymentRawCents,
   }
 }
 

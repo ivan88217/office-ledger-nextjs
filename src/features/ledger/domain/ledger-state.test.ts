@@ -23,6 +23,35 @@ describe('summarizePairLedger', () => {
       effectiveNetCents: 5_000,
     })
   })
+
+  it('雙向消費欠款不應互相抵銷：我欠他與他欠我各自獨立計算', () => {
+    const logs: LedgerLog[] = [
+      { fromUserId: 'alice', toUserId: 'bob', amountCents: 6_000, type: 'EXPENSE_DEBT' },
+      { fromUserId: 'bob', toUserId: 'alice', amountCents: 5_000, type: 'EXPENSE_DEBT' },
+    ]
+
+    expect(summarizePairLedger({ userId: 'alice', peerId: 'bob', logs })).toEqual({
+      expenseBalanceCents: -1_000,
+      myPrepaymentBalanceCents: 0,
+      peerPrepaymentBalanceCents: 0,
+      iOweCents: 6_000,
+      theyOweMeCents: 5_000,
+      effectiveNetCents: -1_000,
+    })
+  })
+
+  it('SETTLEMENT 只會沖掉同方向的消費欠款，不會誤扣對方的欠款', () => {
+    const logs: LedgerLog[] = [
+      { fromUserId: 'alice', toUserId: 'bob', amountCents: 6_000, type: 'EXPENSE_DEBT' },
+      { fromUserId: 'bob', toUserId: 'alice', amountCents: 5_000, type: 'EXPENSE_DEBT' },
+      { fromUserId: 'alice', toUserId: 'bob', amountCents: 6_000, type: 'SETTLEMENT' },
+    ]
+
+    expect(summarizePairLedger({ userId: 'alice', peerId: 'bob', logs })).toMatchObject({
+      iOweCents: 0,
+      theyOweMeCents: 5_000,
+    })
+  })
 })
 
 describe('reconcileReceivableExpenseItems', () => {
