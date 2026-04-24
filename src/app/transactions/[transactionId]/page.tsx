@@ -16,10 +16,10 @@ export default async function TransactionDetailPage({
   const transaction = await getTransactionDetail({ transactionId })
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 px-4 py-8">
+    <main className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:space-y-8 sm:py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{transaction.title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{transaction.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">查看分攤結果與逐人銷帳。</p>
         </div>
         <Button variant="outline" asChild>

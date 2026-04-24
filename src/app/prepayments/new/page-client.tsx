@@ -69,7 +69,7 @@ export function NewPrepaymentForm({
   }
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 px-4 py-8">
+    <main className="mx-auto max-w-lg space-y-6 px-4 py-6 sm:py-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">預付款</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -77,7 +77,7 @@ export function NewPrepaymentForm({
         </p>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>入帳</CardTitle>
           <CardDescription>預付對象不可為自己</CardDescription>
@@ -107,7 +107,7 @@ export function NewPrepaymentForm({
                       setDirection(value)
                     }
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="h-12 w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -120,7 +120,7 @@ export function NewPrepaymentForm({
                 <div className="space-y-2">
                   <Label>{direction === 'PAYER_TO_RECEIVER' ? '我預付給' : '誰預付給我'}</Label>
                   <Select value={peerUserId} onValueChange={setPeerUserId} required>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="h-12 w-full">
                       <SelectValue placeholder="選擇同事" />
                     </SelectTrigger>
                     <SelectContent>
@@ -137,6 +137,7 @@ export function NewPrepaymentForm({
                   <Label htmlFor="amount">金額（元，整數）</Label>
                   <Input
                     id="amount"
+                    className="h-12"
                     inputMode="numeric"
                     value={amountYuan}
                     onChange={(event) => setAmountYuan(event.target.value)}

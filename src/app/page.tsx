@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ArrowRight, Clock3 } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import { getDashboard, getSessionUser } from '#/features/auth/auth.service'
 import { paymentTypeLabel } from '#/features/ledger/type-label'
@@ -15,9 +16,21 @@ export default async function DashboardPage() {
   const data = await getDashboard()
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:space-y-8 sm:py-8">
+      <section className="space-y-3">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--kicker)]">
+            帳務總覽
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">今天的往來狀態</h1>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            先看總額，再往下處理待收回款項、最近變動與各同事的實際關係。
+          </p>
+        </div>
+      </section>
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)] shadow-[0_20px_50px_rgba(23,58,64,0.08)]">
           <CardHeader className="pb-2">
             <CardDescription>我欠他人</CardDescription>
             <CardTitle className="text-2xl text-destructive">
@@ -25,7 +38,7 @@ export default async function DashboardPage() {
             </CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)] shadow-[0_20px_50px_rgba(23,58,64,0.08)]">
           <CardHeader className="pb-2">
             <CardDescription>他人欠我</CardDescription>
             <CardTitle className="text-2xl">{formatTwd(data.totalOwedToMeCents)}</CardTitle>
@@ -33,7 +46,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>與同事的帳</CardTitle>
           <CardDescription>點擊同事可查看往來明細</CardDescription>
@@ -42,7 +55,56 @@ export default async function DashboardPage() {
           {data.peers.length === 0 ? (
             <p className="text-sm text-muted-foreground">尚無帳務紀錄，先建立一筆交易吧。</p>
           ) : (
-            <Table>
+            <>
+              <div className="space-y-3 md:hidden">
+                {data.peers.map((peer) => (
+                  <Link
+                    key={peer.peerId}
+                    href={`/peers/${peer.peerId}`}
+                    className="block rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 transition hover:bg-[color:var(--surface-strong)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{peer.peerUsername}</span>
+                          {peer.pendingIncomingPrepaymentCount > 0 ? (
+                            <Badge variant="destructive">待審核 {peer.pendingIncomingPrepaymentCount}</Badge>
+                          ) : null}
+                        </div>
+                        <p className="text-xs text-muted-foreground">點擊查看欠款、預付與銷帳紀錄</p>
+                      </div>
+                      <ArrowRight className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                        <p className="text-xs text-muted-foreground">他欠我</p>
+                        <p className="mt-1 font-semibold tabular-nums text-yellow-600">
+                          {formatTwd(peer.theyOweMeCents)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                        <p className="text-xs text-muted-foreground">我欠他</p>
+                        <p className="mt-1 font-semibold tabular-nums text-destructive">
+                          {formatTwd(peer.iOweCents)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                        <p className="text-xs text-muted-foreground">我墊給他</p>
+                        <p className="mt-1 font-semibold tabular-nums">
+                          {formatTwd(peer.myPrepaymentBalanceCents)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                        <p className="text-xs text-muted-foreground">他預付給我</p>
+                        <p className="mt-1 font-semibold tabular-nums">
+                          {formatTwd(peer.peerPrepaymentBalanceCents)}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <Table className="responsive-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>同事</TableHead>
@@ -74,12 +136,13 @@ export default async function DashboardPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>我墊款的交易</CardTitle>
           <CardDescription>以你作為付款人的所有交易，可逐筆追蹤回收狀況</CardDescription>
@@ -88,7 +151,55 @@ export default async function DashboardPage() {
           {data.paidTransactions.length === 0 ? (
             <p className="text-sm text-muted-foreground">你目前沒有墊款交易。</p>
           ) : (
-            <Table>
+            <>
+              <div className="space-y-3 md:hidden">
+                {data.paidTransactions.map((transaction) => {
+                  const isSettled = transaction.outstandingCents === 0
+                  return (
+                    <Link
+                      key={transaction.id}
+                      href={`/transactions/${transaction.id}`}
+                      className="block rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 transition hover:bg-[color:var(--surface-strong)]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{transaction.title}</span>
+                            {isSettled ? <Badge variant="secondary">已結清</Badge> : null}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(transaction.createdAt).toLocaleDateString('zh-TW')}
+                          </p>
+                        </div>
+                        <ArrowRight className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                          <p className="text-xs text-muted-foreground">總金額</p>
+                          <p className="mt-1 font-semibold tabular-nums">{formatTwd(transaction.finalCents)}</p>
+                        </div>
+                        <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                          <p className="text-xs text-muted-foreground">別人應還</p>
+                          <p className="mt-1 font-semibold tabular-nums text-muted-foreground">
+                            {formatTwd(transaction.totalOwedByOthersCents)}
+                          </p>
+                        </div>
+                        <div className="col-span-2 rounded-xl bg-[color:var(--surface)] p-3">
+                          <p className="text-xs text-muted-foreground">尚未收回</p>
+                          <p
+                            className={`mt-1 font-semibold tabular-nums ${
+                              isSettled ? 'text-muted-foreground' : 'text-yellow-600'
+                            }`}
+                          >
+                            {formatTwd(transaction.outstandingCents)}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+              <Table className="responsive-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>交易</TableHead>
@@ -130,12 +241,13 @@ export default async function DashboardPage() {
                   )
                 })}
               </TableBody>
-            </Table>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>我代墊待還款</CardTitle>
           <CardDescription>依同事彙總尚未收回的消費款項</CardDescription>
@@ -162,12 +274,34 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>最近變動</CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[320px] pr-4">
+          <div className="space-y-3 md:hidden">
+            {data.recentLogs.map((log) => (
+              <div key={log.id} className="rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Badge variant="secondary">{paymentTypeLabel(log.type)}</Badge>
+                  <span className="font-semibold tabular-nums">{formatTwd(log.amountCents)}</span>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {log.fromUsername} → {log.toUsername}
+                </p>
+                {log.transactionId ? (
+                  <Link
+                    href={`/transactions/${log.transactionId}`}
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary"
+                  >
+                    <Clock3 className="h-4 w-4" />
+                    {log.transactionTitle ?? '交易'}
+                  </Link>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          <ScrollArea className="hidden h-[320px] pr-4 md:block">
             <Table>
               <TableHeader>
                 <TableRow>

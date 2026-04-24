@@ -33,8 +33,12 @@ export function LoginForm() {
   }
 
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 px-4 py-10">
-      <Card>
+    <main className="mx-auto flex min-h-[calc(100svh-7rem)] max-w-md flex-col justify-center gap-6 px-4 py-8 sm:py-10">
+      <div className="space-y-2 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--kicker)]">OfficeLedger</p>
+        <h1 className="text-3xl font-semibold tracking-tight">登入帳務工作台</h1>
+      </div>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)] shadow-[0_20px_50px_rgba(23,58,64,0.08)]">
         <CardHeader>
           <CardTitle>登入</CardTitle>
           <CardDescription>
@@ -53,6 +57,7 @@ export function LoginForm() {
               <Input
                 id="email"
                 type="email"
+                className="h-12"
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -64,6 +69,7 @@ export function LoginForm() {
               <Input
                 id="password"
                 type="password"
+                className="h-12"
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}

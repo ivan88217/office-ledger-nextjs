@@ -13,7 +13,7 @@ export default async function ColleaguesPage() {
   const { colleagues } = await listOfficeColleagues()
 
   return (
-    <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">
+    <main className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:space-y-8 sm:py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">同事</h1>
@@ -22,12 +22,12 @@ export default async function ColleaguesPage() {
         <Button asChild>
           <Link href="/colleagues/new">
             <UserPlus className="mr-2 h-4 w-4" />
-            <span className="text-background">新增同事</span>
+            <span>新增同事</span>
           </Link>
         </Button>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>所有人員</CardTitle>
           <CardDescription>分攤、預付、還款下拉選單會使用此名單</CardDescription>
@@ -36,7 +36,19 @@ export default async function ColleaguesPage() {
           {colleagues.length === 0 ? (
             <p className="text-sm text-muted-foreground">尚無使用者。</p>
           ) : (
-            <Table>
+            <>
+              <div className="space-y-3 md:hidden">
+                {colleagues.map((colleague) => (
+                  <div key={colleague.id} className="rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
+                    <p className="font-semibold">{colleague.username}</p>
+                    <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{colleague.email}</p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      建立於 {new Date(colleague.createdAt).toLocaleString('zh-TW')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <Table className="responsive-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>名稱</TableHead>
@@ -57,7 +69,8 @@ export default async function ColleaguesPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>

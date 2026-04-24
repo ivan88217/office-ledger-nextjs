@@ -35,13 +35,13 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 px-4 py-8">
+    <main className="mx-auto max-w-lg space-y-6 px-4 py-6 sm:py-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">更換密碼</h1>
         <p className="mt-1 text-sm text-muted-foreground">請先輸入目前密碼，再設定至少 6 字元的新密碼。</p>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>帳號安全</CardTitle>
           <CardDescription>密碼更新後，後續登入請使用新密碼。</CardDescription>
@@ -64,6 +64,7 @@ export function ChangePasswordForm() {
               <Input
                 id="current-password"
                 type="password"
+                className="h-12"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
                 required
@@ -74,6 +75,7 @@ export function ChangePasswordForm() {
               <Input
                 id="new-password"
                 type="password"
+                className="h-12"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
                 minLength={6}
@@ -85,6 +87,7 @@ export function ChangePasswordForm() {
               <Input
                 id="confirm-password"
                 type="password"
+                className="h-12"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 minLength={6}

@@ -16,10 +16,10 @@ export default async function PeerLedgerPage({
   const data = await getPeerLedger({ peerId })
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:space-y-8 sm:py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">與 {data.peer.username} 的帳</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">與 {data.peer.username} 的帳</h1>
           <p className="mt-1 text-sm text-muted-foreground">雙向紀錄，金額以你的視角入帳。</p>
         </div>
         <Button variant="outline" asChild>

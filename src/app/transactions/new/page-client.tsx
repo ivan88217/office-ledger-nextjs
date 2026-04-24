@@ -216,13 +216,15 @@ export function NewTransactionForm({
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:space-y-8 sm:py-8">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">新增交易</h1>
-        <p className="mt-1 text-sm text-muted-foreground">實付總額與分攤明細皆以元輸入，實際儲存為分。</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">新增交易</h1>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+          先輸入實付總額，再補上每位參與者的原始金額算式；系統會自動換算成分攤結果。
+        </p>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>交易內容</CardTitle>
           <CardDescription>原始金額算式只允許非負整數與 `+`</CardDescription>
@@ -238,12 +240,12 @@ export function NewTransactionForm({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="title">交易標題</Label>
-                <Input id="title" value={title} onChange={(event) => setTitle(event.target.value)} required />
+                <Input id="title" className="h-12" value={title} onChange={(event) => setTitle(event.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label>付款人</Label>
                 <Select value={payerId} onValueChange={setPayerId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-12 w-full">
                     <SelectValue placeholder="選擇付款人" />
                   </SelectTrigger>
                   <SelectContent>
@@ -261,6 +263,7 @@ export function NewTransactionForm({
               <Label htmlFor="finalYuan">實付總額（元）</Label>
               <Input
                 id="finalYuan"
+                className="h-12"
                 inputMode="numeric"
                 value={finalYuan}
                 onChange={(event) => setFinalYuan(event.target.value)}
@@ -271,19 +274,19 @@ export function NewTransactionForm({
             <Separator />
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="font-medium">參與者</h2>
                   <p className="text-sm text-muted-foreground">點擊選擇或直接輸入搜尋使用者名稱</p>
                 </div>
-                <Button type="button" variant="outline" onClick={addRow}>
+                <Button type="button" variant="outline" className="h-11 w-full sm:w-auto" onClick={addRow}>
                   新增一列
                 </Button>
               </div>
 
               <div className="space-y-3">
                 {rows.map((row, index) => (
-                  <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_auto]">
+                  <div key={index} className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 md:grid-cols-[1fr_1fr_auto]">
                     <div className="space-y-2">
                       <Label className="text-xs whitespace-nowrap">使用者</Label>
                       <Combobox
@@ -310,6 +313,7 @@ export function NewTransactionForm({
                     <div className="space-y-2">
                       <Label className="text-xs whitespace-nowrap">原始金額（元，可含 +）</Label>
                       <Input
+                        className="h-12"
                         ref={(el) => {
                           expressionInputRefs.current[index] = el
                         }}
@@ -322,6 +326,7 @@ export function NewTransactionForm({
                     <Button
                       type="button"
                       variant="ghost"
+                      className="h-11 w-full md:mt-6 md:w-auto"
                       onClick={() => removeRow(index)}
                       disabled={rows.length === 1}
                     >
@@ -340,7 +345,7 @@ export function NewTransactionForm({
       </Card>
 
       <Dialog open={Boolean(preview)} onOpenChange={(open) => !open && setPreview(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[85svh] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>確認分攤</DialogTitle>
             <DialogDescription>
@@ -348,7 +353,25 @@ export function NewTransactionForm({
             </DialogDescription>
           </DialogHeader>
           {preview ? (
-            <Table>
+            <>
+              <div className="space-y-3 md:hidden">
+                {preview.allocations.map((allocation) => (
+                  <div key={allocation.userId} className="rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
+                    <p className="font-semibold">{allocation.username}</p>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                        <p className="text-xs text-muted-foreground">原始</p>
+                        <p className="mt-1 font-semibold tabular-nums">{formatTwd(allocation.originalCents)}</p>
+                      </div>
+                      <div className="rounded-xl bg-[color:var(--surface)] p-3">
+                        <p className="text-xs text-muted-foreground">分攤</p>
+                        <p className="mt-1 font-semibold tabular-nums">{formatTwd(allocation.allocatedCents)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Table className="responsive-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>參與者</TableHead>
@@ -365,7 +388,8 @@ export function NewTransactionForm({
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </>
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreview(null)}>

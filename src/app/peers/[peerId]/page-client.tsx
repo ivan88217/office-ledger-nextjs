@@ -150,26 +150,26 @@ export function PeerLedgerClient({
 
   return (
     <>
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>目前關係</CardTitle>
           <CardDescription>與列表一致的四個指標</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-md border p-3">
+            <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-3">
               <p className="text-xs text-muted-foreground">我欠他</p>
               <p className="text-lg font-semibold tabular-nums">{formatTwd(data.iOweCents)}</p>
             </div>
-            <div className="rounded-md border p-3">
+            <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-3">
               <p className="text-xs text-muted-foreground">他欠我</p>
               <p className="text-lg font-semibold tabular-nums">{formatTwd(data.theyOweMeCents)}</p>
             </div>
-            <div className="rounded-md border p-3">
+            <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-3">
               <p className="text-xs text-muted-foreground">我在他那邊的預付餘額</p>
               <p className="text-lg font-semibold tabular-nums">{formatTwd(data.myPrepaymentBalanceCents)}</p>
             </div>
-            <div className="rounded-md border p-3">
+            <div className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-3">
               <p className="text-xs text-muted-foreground">他在我這的預付餘額</p>
               <p className="text-lg font-semibold tabular-nums">{formatTwd(data.peerPrepaymentBalanceCents)}</p>
             </div>
@@ -178,7 +178,7 @@ export function PeerLedgerClient({
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
             <CardTitle>他欠我的款項</CardTitle>
             <CardDescription>我代墊的每筆尚未收回金額，可逐筆銷帳</CardDescription>
@@ -193,7 +193,7 @@ export function PeerLedgerClient({
               <p className="text-sm text-muted-foreground">目前沒有待銷帳款項。</p>
             ) : (
               data.receivableExpenseItems.map((item) => (
-                <div key={item.debtLogId} className="flex items-center justify-between rounded-md border p-3">
+                <div key={item.debtLogId} className="flex flex-col gap-3 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium tabular-nums">{formatTwd(item.remainingCents)}</p>
                     <p className="text-xs text-muted-foreground">
@@ -208,6 +208,7 @@ export function PeerLedgerClient({
                   </div>
                   <Button
                     size="sm"
+                    className="h-10 w-full sm:w-auto"
                     onClick={() => onSettleExpenseItem(item.debtLogId)}
                     disabled={pendingDebtLogId === item.debtLogId}
                   >
@@ -219,7 +220,7 @@ export function PeerLedgerClient({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
             <CardTitle>我欠他的款項</CardTitle>
             <CardDescription>對方代墊的每筆尚未還清金額（僅供檢視）</CardDescription>
@@ -229,7 +230,7 @@ export function PeerLedgerClient({
               <p className="text-sm text-muted-foreground">目前沒有欠對方的款項。</p>
             ) : (
               data.payableExpenseItems.map((item) => (
-                <div key={item.debtLogId} className="flex items-center justify-between rounded-md border p-3">
+                <div key={item.debtLogId} className="flex flex-col gap-3 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-medium tabular-nums">{formatTwd(item.remainingCents)}</p>
                     <p className="text-xs text-muted-foreground">
@@ -254,7 +255,7 @@ export function PeerLedgerClient({
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>實際關係（含預付）</CardTitle>
           <CardDescription>已把預付影響納入後的最終欠款方向</CardDescription>
@@ -271,7 +272,7 @@ export function PeerLedgerClient({
       </Card>
 
       {data.pendingIncomingPrepayments.length > 0 ? (
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
             <CardTitle>待你確認的預付款</CardTitle>
             <CardDescription>對方送出的預付，確認後才會正式入帳</CardDescription>
@@ -283,12 +284,17 @@ export function PeerLedgerClient({
               </Alert>
             ) : null}
             {data.pendingIncomingPrepayments.map((request) => (
-              <div key={request.id} className="flex items-center justify-between rounded-md border p-3">
-                <p className="text-sm">
+              <div key={request.id} className="flex flex-col gap-3 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6">
                   {request.kind === 'PREPAYMENT' ? '對方預付給你' : '對方要求你返還預付款'}{' '}
                   <span className="font-medium tabular-nums">{formatTwd(request.amountCents)}</span>
                 </p>
-                <Button size="sm" onClick={() => onConfirm(request.id)} disabled={pendingConfirmId === request.id}>
+                <Button
+                  size="sm"
+                  className="h-10 w-full sm:w-auto"
+                  onClick={() => onConfirm(request.id)}
+                  disabled={pendingConfirmId === request.id}
+                >
                   {pendingConfirmId === request.id ? '確認中…' : '確認'}
                 </Button>
               </div>
@@ -298,7 +304,7 @@ export function PeerLedgerClient({
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
             <CardTitle>請對方返還預付款</CardTitle>
             <CardDescription>目前可申請返還上限：{formatTwd(data.peerPrepaymentAvailableToRefundCents)}</CardDescription>
@@ -306,19 +312,20 @@ export function PeerLedgerClient({
           <CardContent>
             <form onSubmit={onRequestRefund} className="space-y-3">
               <Input
+                className="h-12"
                 inputMode="numeric"
                 value={requestRefundYuan}
                 onChange={(event) => setRequestRefundYuan(event.target.value)}
                 placeholder="金額（元）"
               />
-              <Button type="submit" disabled={refundActionPending === 'request'}>
+              <Button className="h-11 w-full sm:w-auto" type="submit" disabled={refundActionPending === 'request'}>
                 {refundActionPending === 'request' ? '送出中…' : '送出返還請求'}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
             <CardTitle>直接紀錄對方返還</CardTitle>
             <CardDescription>當對方已經把預付款返還給你時可直接入帳。</CardDescription>
@@ -326,12 +333,13 @@ export function PeerLedgerClient({
           <CardContent>
             <form onSubmit={onRecordRefund} className="space-y-3">
               <Input
+                className="h-12"
                 inputMode="numeric"
                 value={recordRefundYuan}
                 onChange={(event) => setRecordRefundYuan(event.target.value)}
                 placeholder="金額（元）"
               />
-              <Button type="submit" disabled={refundActionPending === 'record'}>
+              <Button className="h-11 w-full sm:w-auto" type="submit" disabled={refundActionPending === 'record'}>
                 {refundActionPending === 'record' ? '入帳中…' : '確認返還'}
               </Button>
             </form>
@@ -344,7 +352,7 @@ export function PeerLedgerClient({
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>往來紀錄</CardTitle>
           <CardDescription>銷帳紀錄如按錯可按「沖銷」還原</CardDescription>
@@ -355,7 +363,40 @@ export function PeerLedgerClient({
               <AlertDescription>{reverseError}</AlertDescription>
             </Alert>
           ) : null}
-          <Table>
+          <div className="space-y-3 md:hidden">
+            {data.logs.map((log) => {
+              const canReverse =
+                log.type === 'SETTLEMENT' &&
+                log.note !== '預付款沖抵消費欠款' &&
+                !log.isReversed
+              return (
+                <div key={log.id} className="rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant="secondary">{paymentTypeLabel(log.type)}</Badge>
+                    <span className="font-semibold tabular-nums">{formatTwd(log.amountCents)}</span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{log.note ?? '—'}</p>
+                  {log.transactionId ? (
+                    <Link href={`/transactions/${log.transactionId}`} className="mt-2 inline-block text-sm text-primary">
+                      {log.transactionTitle ?? '交易'}
+                    </Link>
+                  ) : null}
+                  {canReverse ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-3 h-10 w-full"
+                      onClick={() => onReverseSettlement(log.id)}
+                      disabled={pendingReverseLogId === log.id}
+                    >
+                      {pendingReverseLogId === log.id ? '沖銷中…' : '沖銷'}
+                    </Button>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+          <Table className="responsive-table">
             <TableHeader>
               <TableRow>
                 <TableHead>類型</TableHead>
