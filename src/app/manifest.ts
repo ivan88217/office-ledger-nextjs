@@ -21,9 +21,10 @@ export default function manifest(): MetadataRoute.Manifest {
         src: '/logo512.png',
         sizes: '512x512',
         type: 'image/png',
+        purpose: 'any',
       },
       {
-        src: '/office-ledger-logo.png',
+        src: '/maskable-icon.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
