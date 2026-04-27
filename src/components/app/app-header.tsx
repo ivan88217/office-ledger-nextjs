@@ -7,6 +7,7 @@ import { Button } from '#/components/ui/button'
 
 const desktopNav = [
   { href: '/', label: '總覽' },
+  { href: '/events', label: '活動' },
   { href: '/transactions/new', label: '記帳' },
   { href: '/prepayments/new', label: '預付款' },
   { href: '/colleagues', label: '同事' },

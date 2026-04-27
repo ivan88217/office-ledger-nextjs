@@ -28,10 +28,24 @@ enum PrepaymentRequestKind {
   REFUND
 }
 
+enum DiningEventStatus {
+  DRAFT
+  FINALIZED
+}
+
 type TransactionParticipant {
   userId         String @db.ObjectId
   originalCents  Int
   allocatedCents Int
+}
+
+type DiningEventItem {
+  id                 String
+  name               String
+  amountCents        Int
+  participantUserIds String[] @db.ObjectId
+  recordedByUserId   String?  @db.ObjectId
+  order              Int
 }
 
 model User {
@@ -44,6 +58,7 @@ model User {
 
   sessions          Session[]
   transactionsPaid  Transaction[]    @relation("TransactionPayer")
+  diningEventsPaid  DiningEvent[]    @relation("DiningEventPayer")
   paymentLogsFrom   PaymentLog[]     @relation("PaymentFrom")
   paymentLogsTo     PaymentLog[]     @relation("PaymentTo")
   prepaymentRequestsFrom PrepaymentRequest[] @relation("PrepaymentRequestFrom")
@@ -71,8 +86,25 @@ model Transaction {
   createdAt    DateTime                 @default(now())
 
   paymentLogs PaymentLog[]
-
   @@index([payerId])
+  @@index([createdAt])
+}
+
+model DiningEvent {
+  id                     String            @id @default(auto()) @map("_id") @db.ObjectId
+  title                  String
+  payerId                String            @db.ObjectId
+  payer                  User              @relation("DiningEventPayer", fields: [payerId], references: [id])
+  serviceChargeEnabled   Boolean           @default(true)
+  serviceChargeRateBps   Int               @default(1000)
+  status                 DiningEventStatus @default(DRAFT)
+  finalizedTransactionId String?           @db.ObjectId
+  items                  DiningEventItem[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  @@index([payerId, status])
+  @@index([finalizedTransactionId])
   @@index([createdAt])
 }
 

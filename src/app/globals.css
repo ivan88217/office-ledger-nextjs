@@ -218,7 +218,7 @@ main {
   bottom: 0.75rem;
   z-index: 45;
   display: none;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem;
   padding: 0.6rem 0.65rem calc(0.6rem + env(safe-area-inset-bottom));
   border: 1px solid var(--line);

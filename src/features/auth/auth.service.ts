@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { PrepaymentRequestKind, PrepaymentRequestStatus } from '@prisma/client'
+import { DiningEventStatus, PrepaymentRequestKind, PrepaymentRequestStatus } from '@prisma/client'
 import { prisma } from '#/lib/db/prisma'
 import { validatePasswordChangeInput } from '#/features/auth/change-password'
 import {
@@ -10,6 +10,10 @@ import {
   resolveSessionUserId,
 } from '#/features/auth/session'
 import { computeAllocations } from '#/features/ledger/domain/allocation'
+import {
+  computeDiningEventAllocation,
+  type DiningEventItemInput,
+} from '#/features/ledger/domain/dining-event'
 import {
   getRemainingTransactionDebtCents,
   reconcileReceivableExpenseItems,
@@ -169,6 +173,146 @@ export async function listOfficeColleagues() {
   return { colleagues }
 }
 
+export async function getDiningEventDetail(input: { eventId: string }) {
+  const currentUserId = await resolveSessionUserId()
+  if (!currentUserId) throw new Error('請先登入')
+
+  const event = await prisma.diningEvent.findUnique({
+    where: { id: input.eventId },
+    include: {
+      payer: { select: { username: true } },
+    },
+  })
+  if (!event) throw new Error('找不到活動')
+
+  const participantUserIds = event.items.flatMap((item) => item.participantUserIds)
+  const recorderUserIds = event.items.flatMap((item) =>
+    item.recordedByUserId ? [item.recordedByUserId] : [],
+  )
+  const involvedUserIds = [...new Set([event.payerId, ...participantUserIds, ...recorderUserIds])]
+  const users = await prisma.user.findMany({
+    where: { id: { in: involvedUserIds } },
+    select: { id: true, username: true },
+  })
+  const finalizedTransaction = event.finalizedTransactionId
+    ? await prisma.transaction.findUnique({
+        where: { id: event.finalizedTransactionId },
+        select: { id: true, title: true },
+      })
+    : null
+  const usernameById = new Map(users.map((user) => [user.id, user.username]))
+
+  const allocation =
+    event.items.length > 0
+      ? computeDiningEventAllocation({
+          items: event.items,
+          serviceChargeEnabled: event.serviceChargeEnabled,
+          serviceChargeRateBps: event.serviceChargeRateBps,
+        })
+      : {
+          subtotalCents: 0,
+          serviceChargeCents: 0,
+          totalCents: 0,
+          users: [],
+        }
+
+  return {
+    id: event.id,
+    title: event.title,
+    payerId: event.payerId,
+    payerUsername: event.payer.username,
+    serviceChargeEnabled: event.serviceChargeEnabled,
+    serviceChargeRateBps: event.serviceChargeRateBps,
+    status: event.status,
+    finalizedTransactionId: event.finalizedTransactionId,
+    finalizedTransactionTitle: finalizedTransaction?.title ?? null,
+    createdAt: event.createdAt.toISOString(),
+    updatedAt: event.updatedAt.toISOString(),
+    currentUserId,
+    items: event.items
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        amountCents: item.amountCents,
+        participantUserIds: item.participantUserIds,
+        recordedByUserId: item.recordedByUserId,
+        recordedByUsername: item.recordedByUserId
+          ? usernameById.get(item.recordedByUserId) ?? item.recordedByUserId
+          : null,
+        participantUsernames: item.participantUserIds.map(
+          (userId) => usernameById.get(userId) ?? userId,
+        ),
+        order: item.order,
+      })),
+    allocation: {
+      subtotalCents: allocation.subtotalCents,
+      serviceChargeCents: allocation.serviceChargeCents,
+      totalCents: allocation.totalCents,
+      users: allocation.users.map((summary) => ({
+        ...summary,
+        username: usernameById.get(summary.userId) ?? summary.userId,
+      })),
+    },
+  }
+}
+
+export async function listDiningEvents() {
+  const currentUserId = await resolveSessionUserId()
+  if (!currentUserId) throw new Error('請先登入')
+
+  const events = await prisma.diningEvent.findMany({
+    orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+    take: 60,
+    include: {
+      payer: { select: { username: true } },
+    },
+  })
+
+  const participantUserIds = events.flatMap((event) =>
+    event.items.flatMap((item) => item.participantUserIds),
+  )
+  const users = participantUserIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: [...new Set(participantUserIds)] } },
+        select: { id: true, username: true },
+      })
+    : []
+  const usernameById = new Map(users.map((user) => [user.id, user.username]))
+
+  return {
+    currentUserId,
+    events: events.map((event) => {
+      const allocation =
+        event.items.length > 0
+          ? computeDiningEventAllocation({
+              items: event.items,
+              serviceChargeEnabled: event.serviceChargeEnabled,
+              serviceChargeRateBps: event.serviceChargeRateBps,
+            })
+          : null
+      const participantIds = [...new Set(event.items.flatMap((item) => item.participantUserIds))]
+
+      return {
+        id: event.id,
+        title: event.title,
+        payerId: event.payerId,
+        payerUsername: event.payer.username,
+        status: event.status,
+        itemCount: event.items.length,
+        participantCount: participantIds.length,
+        participantUsernames: participantIds
+          .map((userId) => usernameById.get(userId) ?? userId)
+          .sort((a, b) => a.localeCompare(b)),
+        totalCents: allocation?.totalCents ?? 0,
+        updatedAt: event.updatedAt.toISOString(),
+        createdAt: event.createdAt.toISOString(),
+      }
+    }),
+  }
+}
+
 export async function createExpenseTransaction(input: {
   title: string
   payerId: string
@@ -223,6 +367,225 @@ export async function createExpenseTransaction(input: {
   })
 
   return { ok: true as const, transactionId: tx.id }
+}
+
+function normalizeDiningEventTitle(title: string) {
+  const normalized = title.trim()
+  if (!normalized) throw new Error('請輸入活動名稱')
+  if (normalized.length > 80) throw new Error('活動名稱不可超過 80 字')
+  return normalized
+}
+
+function normalizeServiceChargeRateBps(rate: number) {
+  if (!Number.isInteger(rate) || rate < 0 || rate > 100000) {
+    throw new Error('服務費比例必須介於 0% 到 1000%')
+  }
+  return rate
+}
+
+function normalizeDiningEventItems(items: DiningEventItemInput[]) {
+  return items.map((item, index) => ({
+    id: item.id.trim() || crypto.randomUUID(),
+    name: item.name.trim(),
+    amountCents: item.amountCents,
+    participantUserIds: item.participantUserIds,
+    recordedByUserId: item.recordedByUserId ?? null,
+    order: item.order ?? index,
+  }))
+}
+
+async function validateDiningEventUsers(params: {
+  payerId: string
+  participantUserIds: string[]
+}) {
+  const userIds = [...new Set([params.payerId, ...params.participantUserIds])]
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true },
+  })
+  if (users.length !== userIds.length) throw new Error('活動包含不存在的使用者')
+}
+
+export async function createDiningEvent(input: { title: string; payerId: string }) {
+  await requireSessionUser()
+
+  const title = normalizeDiningEventTitle(input.title)
+  await validateDiningEventUsers({ payerId: input.payerId, participantUserIds: [] })
+
+  const event = await prisma.diningEvent.create({
+    data: {
+      title,
+      payerId: input.payerId,
+      serviceChargeEnabled: true,
+      serviceChargeRateBps: 1000,
+      status: DiningEventStatus.DRAFT,
+      items: [],
+    },
+  })
+
+  return { ok: true as const, eventId: event.id }
+}
+
+export async function updateDiningEvent(input: {
+  eventId: string
+  title: string
+  payerId: string
+  serviceChargeEnabled: boolean
+  serviceChargeRateBps: number
+  items: DiningEventItemInput[]
+}) {
+  await requireSessionUser()
+
+  const title = normalizeDiningEventTitle(input.title)
+  const serviceChargeRateBps = normalizeServiceChargeRateBps(input.serviceChargeRateBps)
+  const items = normalizeDiningEventItems(input.items)
+
+  if (items.length > 0) {
+    computeDiningEventAllocation({
+      items,
+      serviceChargeEnabled: input.serviceChargeEnabled,
+      serviceChargeRateBps,
+    })
+  }
+
+  await validateDiningEventUsers({
+    payerId: input.payerId,
+    participantUserIds: items.flatMap((item) => item.participantUserIds),
+  })
+
+  const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
+  if (!event) throw new Error('找不到活動')
+  if (event.status !== DiningEventStatus.DRAFT) throw new Error('活動已結算，不能再編輯')
+
+  await prisma.diningEvent.update({
+    where: { id: input.eventId },
+    data: {
+      title,
+      payerId: input.payerId,
+      serviceChargeEnabled: input.serviceChargeEnabled,
+      serviceChargeRateBps,
+      items,
+    },
+  })
+
+  return { ok: true as const, eventId: input.eventId }
+}
+
+export async function addDiningEventItem(input: {
+  eventId: string
+  name: string
+  amountCents: number
+  participantUserIds: string[]
+}) {
+  const userId = await resolveSessionUserId()
+  if (!userId) throw new Error('請先登入')
+
+  const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
+  if (!event) throw new Error('找不到活動')
+  if (event.status !== DiningEventStatus.DRAFT) throw new Error('活動已結算，不能再新增品項')
+
+  const item = {
+    id: crypto.randomUUID(),
+    name: input.name.trim(),
+    amountCents: input.amountCents,
+    participantUserIds: input.participantUserIds,
+    recordedByUserId: userId,
+    order: event.items.length,
+  }
+
+  computeDiningEventAllocation({
+    items: [item],
+    serviceChargeEnabled: false,
+    serviceChargeRateBps: 0,
+  })
+  await validateDiningEventUsers({
+    payerId: event.payerId,
+    participantUserIds: [...input.participantUserIds, userId],
+  })
+
+  await prisma.diningEvent.update({
+    where: { id: input.eventId },
+    data: { items: [...event.items, item] },
+  })
+
+  return { ok: true as const, eventId: input.eventId, itemId: item.id }
+}
+
+export async function deleteDiningEvent(input: { eventId: string }) {
+  const userId = await resolveSessionUserId()
+  if (!userId) throw new Error('請先登入')
+
+  const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
+  if (!event) throw new Error('找不到活動')
+  if (event.status !== DiningEventStatus.DRAFT) throw new Error('已結算活動不能刪除')
+  if (event.payerId !== userId) throw new Error('只有付款人可刪除活動')
+
+  await prisma.diningEvent.delete({ where: { id: input.eventId } })
+
+  return { ok: true as const }
+}
+
+export async function finalizeDiningEvent(input: { eventId: string }) {
+  const userId = await resolveSessionUserId()
+  if (!userId) throw new Error('請先登入')
+
+  const transaction = await prisma.$transaction(async (ptx) => {
+    const event = await ptx.diningEvent.findUnique({ where: { id: input.eventId } })
+    if (!event) throw new Error('找不到活動')
+    if (event.status !== DiningEventStatus.DRAFT) throw new Error('活動已結算')
+    if (event.finalizedTransactionId) throw new Error('活動已建立正式交易')
+    if (event.payerId !== userId) throw new Error('只有付款人可結算活動')
+
+    const allocation = computeDiningEventAllocation({
+      items: event.items,
+      serviceChargeEnabled: event.serviceChargeEnabled,
+      serviceChargeRateBps: event.serviceChargeRateBps,
+    })
+
+    const participantUserIds = allocation.users.map((summary) => summary.userId)
+    const knownUsers = await ptx.user.findMany({
+      where: { id: { in: [...new Set([...participantUserIds, event.payerId])] } },
+      select: { id: true },
+    })
+    if (knownUsers.length !== new Set([...participantUserIds, event.payerId]).size) {
+      throw new Error('活動包含不存在的使用者')
+    }
+
+    const tx = await ptx.transaction.create({
+      data: {
+        title: event.title,
+        payerId: event.payerId,
+        finalCents: allocation.totalCents,
+        participants: allocation.users.map((summary) => ({
+          userId: summary.userId,
+          originalCents: summary.subtotalCents,
+          allocatedCents: summary.totalCents,
+        })),
+      },
+    })
+
+    for (const summary of allocation.users) {
+      if (summary.userId === event.payerId || summary.totalCents <= 0) continue
+      await applyExpenseDebtForParticipant(ptx, {
+        debtorId: summary.userId,
+        creditorId: event.payerId,
+        debtCents: summary.totalCents,
+        transactionId: tx.id,
+      })
+    }
+
+    await ptx.diningEvent.update({
+      where: { id: event.id },
+      data: {
+        status: DiningEventStatus.FINALIZED,
+        finalizedTransactionId: tx.id,
+      },
+    })
+
+    return tx
+  })
+
+  return { ok: true as const, transactionId: transaction.id }
 }
 
 export async function createPrepaymentEntry(input: {

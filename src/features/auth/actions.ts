@@ -8,6 +8,7 @@ import { runAction } from '#/lib/server-action/result'
 function revalidateLedgerPaths() {
   revalidatePath('/', 'layout')
   revalidatePath('/')
+  revalidatePath('/events/new')
   revalidatePath('/transactions/new')
   revalidatePath('/prepayments/new')
   revalidatePath('/settlements/new')
@@ -89,6 +90,74 @@ export async function createExpenseTransactionAction(input: {
   return runAction(async () => {
     const result = await authService.createExpenseTransaction(input)
     revalidateLedgerPaths()
+    revalidatePath(`/transactions/${result.transactionId}`)
+    return result
+  })
+}
+
+export async function createDiningEventAction(input: {
+  title: string
+  payerId: string
+}) {
+  return runAction(async () => {
+    const result = await authService.createDiningEvent(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/events/${result.eventId}`)
+    return result
+  })
+}
+
+export async function updateDiningEventAction(input: {
+  eventId: string
+  title: string
+  payerId: string
+  serviceChargeEnabled: boolean
+  serviceChargeRateBps: number
+  items: {
+    id: string
+    name: string
+    amountCents: number
+    participantUserIds: string[]
+    recordedByUserId?: string | null
+    order: number
+  }[]
+}) {
+  return runAction(async () => {
+    const result = await authService.updateDiningEvent(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/events/${input.eventId}`)
+    return result
+  })
+}
+
+export async function addDiningEventItemAction(input: {
+  eventId: string
+  name: string
+  amountCents: number
+  participantUserIds: string[]
+}) {
+  return runAction(async () => {
+    const result = await authService.addDiningEventItem(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/events/${input.eventId}`)
+    return result
+  })
+}
+
+export async function deleteDiningEventAction(input: { eventId: string }) {
+  return runAction(async () => {
+    const result = await authService.deleteDiningEvent(input)
+    revalidateLedgerPaths()
+    revalidatePath('/events')
+    return result
+  })
+}
+
+export async function finalizeDiningEventAction(input: { eventId: string }) {
+  return runAction(async () => {
+    const result = await authService.finalizeDiningEvent(input)
+    revalidateLedgerPaths()
+    revalidatePath(`/events/${input.eventId}`)
     revalidatePath(`/transactions/${result.transactionId}`)
     return result
   })

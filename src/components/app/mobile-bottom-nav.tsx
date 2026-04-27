@@ -1,12 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { ReceiptText, Users, Wallet } from 'lucide-react'
+import { CalendarDays, ReceiptText, Users, Wallet } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { cn } from '#/lib/utils'
 
 const items = [
   { href: '/', label: '總覽', icon: ReceiptText, match: (pathname: string) => pathname === '/' },
+  {
+    href: '/events',
+    label: '活動',
+    icon: CalendarDays,
+    match: (pathname: string) => pathname.startsWith('/events'),
+  },
   {
     href: '/transactions/new',
     label: '記帳',
