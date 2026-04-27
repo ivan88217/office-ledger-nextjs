@@ -106,6 +106,16 @@ function eventSettingsSignature(input: {
   return JSON.stringify(input)
 }
 
+function mapEventItemsToEditableItems(event: DiningEventDetail): EditableItem[] {
+  return event.items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    amountYuan: String(item.amountCents / 100),
+    participantUserIds: item.participantUserIds,
+    recordedByUserId: item.recordedByUserId ?? null,
+  }))
+}
+
 export function DiningEventClient({
   event,
   users,
@@ -122,15 +132,7 @@ export function DiningEventClient({
     bpsToPercentInput(event.serviceChargeRateBps),
   )
   const [items, setItems] = useState<EditableItem[]>(
-    event.items.length > 0
-      ? event.items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          amountYuan: String(item.amountCents / 100),
-          participantUserIds: item.participantUserIds,
-          recordedByUserId: item.recordedByUserId ?? null,
-        }))
-      : [],
+    mapEventItemsToEditableItems(event),
   )
   const [itemDialog, setItemDialog] = useState<ItemDialogState | null>(null)
   const [itemDialogError, setItemDialogError] = useState<string | null>(null)
@@ -150,6 +152,59 @@ export function DiningEventClient({
   const [, startTransition] = useTransition()
 
   const userNameById = useMemo(() => new Map(users.map((user) => [user.id, user.username])), [users])
+
+  useEffect(() => {
+    if (isFinalized) return
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      router.refresh()
+    }, 5000)
+
+    return () => window.clearInterval(interval)
+  }, [isFinalized, router])
+
+  useEffect(() => {
+    if (pendingAction || itemDialog) return
+
+    const serverServiceChargePercent = bpsToPercentInput(event.serviceChargeRateBps)
+    const serverSignature = eventSettingsSignature({
+      title: event.title,
+      payerId: event.payerId,
+      serviceChargeEnabled: event.serviceChargeEnabled,
+      serviceChargePercent: serverServiceChargePercent,
+    })
+    const localSignature = eventSettingsSignature({
+      title,
+      payerId,
+      serviceChargeEnabled,
+      serviceChargePercent,
+    })
+    const localHasUnsavedSettings = localSignature !== savedSettingsSignatureRef.current
+
+    setItems(mapEventItemsToEditableItems(event))
+
+    if (!localHasUnsavedSettings) {
+      setTitle(event.title)
+      setPayerId(event.payerId)
+      setServiceChargeEnabled(event.serviceChargeEnabled)
+      setServiceChargePercent(serverServiceChargePercent)
+      savedSettingsSignatureRef.current = serverSignature
+      setAutoSaveStatus('idle')
+    }
+  }, [event, pendingAction, itemDialog, title, payerId, serviceChargeEnabled, serviceChargePercent])
+
+  useEffect(() => {
+    if (!success) return
+    const timer = window.setTimeout(() => setSuccess(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [success])
+
+  useEffect(() => {
+    if (!shareStatus) return
+    const timer = window.setTimeout(() => setShareStatus(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [shareStatus])
 
   const preview = useMemo(() => {
     try {
