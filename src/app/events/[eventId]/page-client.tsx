@@ -768,7 +768,30 @@ export function DiningEventClient({
             <CardHeader>
               <CardTitle>每人彙總</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="space-y-3 md:hidden">
+                {allocation.users.map((summary) => (
+                  <div key={summary.userId} className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{summaryUsername(summary, userNameById)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{summary.items.length} 個品項</p>
+                      </div>
+                      <p className="shrink-0 font-semibold tabular-nums">{formatTwd(summary.totalCents)}</p>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      <div className="rounded-lg bg-background/70 p-3">
+                        <p className="text-xs text-muted-foreground">小計</p>
+                        <p className="mt-1 font-semibold tabular-nums">{formatTwd(summary.subtotalCents)}</p>
+                      </div>
+                      <div className="rounded-lg bg-background/70 p-3">
+                        <p className="text-xs text-muted-foreground">服務費</p>
+                        <p className="mt-1 font-semibold tabular-nums">{formatTwd(summary.serviceChargeCents)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
               <Table className="responsive-table">
                 <TableHeader>
                   <TableRow>
