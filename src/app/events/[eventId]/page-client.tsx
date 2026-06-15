@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Check, Copy, Plus, ReceiptText, Trash2 } from 'lucide-react'
+import { Check, Copy, Maximize2, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -18,6 +18,13 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Separator } from '#/components/ui/separator'
@@ -26,6 +33,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '#
 
 type SelectUser = { id: string; username: string }
 type DiningEventDetail = Awaited<ReturnType<typeof import('#/features/auth/auth.service').getDiningEventDetail>>
+type DiningEventAllocation = ReturnType<typeof computeDiningEventAllocation>
 type EditableItem = {
   id: string
   name: string
@@ -116,6 +124,71 @@ function mapEventItemsToEditableItems(event: DiningEventDetail): EditableItem[] 
   }))
 }
 
+function SettlementScreenshotPreview({
+  title,
+  payerName,
+  allocation,
+  userNameById,
+}: {
+  title: string
+  payerName: string
+  allocation: DiningEventAllocation
+  userNameById: Map<string, string>
+}) {
+  return (
+    <section className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface-strong)] p-4 text-[color:var(--foreground)] sm:p-5">
+      <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold sm:text-2xl">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">統一付款人：{payerName}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-sm sm:min-w-[22rem]">
+          <div className="rounded-lg bg-[color:var(--surface)] p-3">
+            <p className="text-xs text-muted-foreground">小計</p>
+            <p className="mt-1 font-semibold tabular-nums">{formatTwd(allocation.subtotalCents)}</p>
+          </div>
+          <div className="rounded-lg bg-[color:var(--surface)] p-3">
+            <p className="text-xs text-muted-foreground">服務費</p>
+            <p className="mt-1 font-semibold tabular-nums">{formatTwd(allocation.serviceChargeCents)}</p>
+          </div>
+          <div className="rounded-lg bg-[color:var(--foreground)] p-3 text-[color:var(--background)]">
+            <p className="text-xs opacity-75">總額</p>
+            <p className="mt-1 font-semibold tabular-nums">{formatTwd(allocation.totalCents)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {allocation.users.map((summary) => (
+          <div
+            key={summary.userId}
+            className="break-inside-avoid rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-semibold">{summaryUsername(summary, userNameById)}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {summary.items.length} 個品項 · 服務費 {formatTwd(summary.serviceChargeCents)}
+                </p>
+              </div>
+              <p className="shrink-0 text-base font-semibold tabular-nums">{formatTwd(summary.totalCents)}</p>
+            </div>
+
+            <div className="mt-3 divide-y divide-[color:var(--line)]">
+              {summary.items.map((item) => (
+                <div key={`${summary.userId}-${item.itemId}`} className="flex items-start justify-between gap-3 py-2 text-sm">
+                  <span className="min-w-0 whitespace-normal text-muted-foreground">{item.name}</span>
+                  <span className="shrink-0 tabular-nums">{formatTwd(item.shareCents)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export function DiningEventClient({
   event,
   users,
@@ -141,6 +214,7 @@ export function DiningEventClient({
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [pendingAction, setPendingAction] = useState<'item' | 'delete-event' | 'finalize' | null>(null)
   const [shareStatus, setShareStatus] = useState<string | null>(null)
+  const [settlementPreviewOpen, setSettlementPreviewOpen] = useState(false)
   const savedSettingsSignatureRef = useRef(
     eventSettingsSignature({
       title: event.title,
@@ -493,6 +567,7 @@ export function DiningEventClient({
 
   const allocation = isFinalized ? event.allocation : preview.allocation
   const previewError = isFinalized ? null : preview.error
+  const payerName = userNameById.get(payerId) ?? payerId
 
   return (
     <>
@@ -712,8 +787,22 @@ export function DiningEventClient({
       <div className="space-y-6">
         <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
-            <CardTitle>結算預覽</CardTitle>
-            <CardDescription>依目前品項即時計算每人實際應付。</CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>結算預覽</CardTitle>
+                <CardDescription>依目前品項即時計算每人實際應付。</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={() => setSettlementPreviewOpen(true)}
+                disabled={!allocation || allocation.users.length === 0}
+              >
+                <Maximize2 className="mr-2 h-4 w-4" />
+                放大預覽
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-3 gap-2 text-sm">
@@ -817,6 +906,24 @@ export function DiningEventClient({
         ) : null}
       </div>
     </div>
+    <Dialog open={settlementPreviewOpen} onOpenChange={setSettlementPreviewOpen}>
+      <DialogContent className="inset-2 max-h-[calc(100svh-1rem)] max-w-none overflow-y-auto p-3 sm:inset-x-4 sm:top-4 sm:left-1/2 sm:bottom-auto sm:w-[calc(100vw-2rem)] sm:max-w-7xl sm:translate-y-0 sm:p-4 md:max-w-7xl">
+        <DialogHeader className="pr-10">
+          <DialogTitle>放大結算預覽</DialogTitle>
+          <DialogDescription>可直接用手機或電腦截圖提供給店家確認訂購內容。</DialogDescription>
+        </DialogHeader>
+        {allocation && allocation.users.length > 0 ? (
+          <SettlementScreenshotPreview
+            title={title}
+            payerName={payerName}
+            allocation={allocation}
+            userNameById={userNameById}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">新增品項後才會產生可截圖的放大預覽。</p>
+        )}
+      </DialogContent>
+    </Dialog>
     {itemDialog ? (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
         <div className="max-h-[calc(100svh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-[color:var(--line)] bg-popover p-5 text-popover-foreground shadow-2xl">
