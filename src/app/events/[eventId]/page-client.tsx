@@ -81,8 +81,8 @@ function normalizeItems(items: EditableItem[]) {
 
     if (!item.name.trim()) throw new Error(`第 ${index + 1} 個品項請輸入品名`)
     const amountYuan = Number(item.amountYuan)
-    if (!Number.isInteger(amountYuan) || amountYuan <= 0) {
-      throw new Error(`第 ${index + 1} 個品項金額請輸入正整數元`)
+    if (!Number.isInteger(amountYuan)) {
+      throw new Error(`第 ${index + 1} 個品項金額請輸入整數元`)
     }
     if (item.participantUserIds.length === 0) {
       throw new Error(`第 ${index + 1} 個品項請至少選擇一位分攤對象`)
@@ -974,7 +974,8 @@ export function DiningEventClient({
                 <Input
                   id="itemAmount"
                   className="h-12"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  placeholder="例如：-50"
                   value={itemDialog.item.amountYuan}
                   onChange={(inputEvent) => updateDialogItem({ amountYuan: inputEvent.target.value })}
                 />

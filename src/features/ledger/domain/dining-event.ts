@@ -28,8 +28,8 @@ export type DiningEventAllocation = {
 }
 
 function assertWholeYuanCents(value: number, label: string) {
-  if (!Number.isInteger(value) || value < 0 || value % 100 !== 0) {
-    throw new Error(`${label}必須為非負整數元`)
+  if (!Number.isInteger(value) || value % 100 !== 0) {
+    throw new Error(`${label}必須為整數元`)
   }
 }
 
@@ -126,7 +126,6 @@ export function computeDiningEventAllocation(params: {
     const name = item.name.trim()
     if (!name) throw new Error('品項名稱不可空白')
     assertWholeYuanCents(item.amountCents, '品項金額')
-    if (item.amountCents <= 0) throw new Error('品項金額必須大於 0')
 
     subtotalCents += item.amountCents
     const shares = splitWholeYuanCents({
@@ -158,7 +157,7 @@ export function computeDiningEventAllocation(params: {
 
   const subtotalYuan = subtotalCents / 100
   const serviceChargeCents = serviceChargeEnabled
-    ? Math.floor((subtotalYuan * serviceChargeRateBps + 5000) / 10000) * 100
+    ? Math.max(0, Math.floor((subtotalYuan * serviceChargeRateBps + 5000) / 10000) * 100)
     : 0
 
   const userSummaries = [...summaryByUserId.values()].sort((a, b) =>
@@ -168,7 +167,8 @@ export function computeDiningEventAllocation(params: {
     amountCents: serviceChargeCents,
     weights: userSummaries.map((summary) => ({
       userId: summary.userId,
-      weightCents: summary.subtotalCents,
+      // 折扣可能讓某位使用者的淨小計為負數；服務費只按正的小計分攤。
+      weightCents: Math.max(0, summary.subtotalCents),
     })),
   })
 

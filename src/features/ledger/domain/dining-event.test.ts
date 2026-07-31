@@ -68,6 +68,42 @@ describe('computeDiningEventAllocation', () => {
     expect(result.users.reduce((sum, user) => sum + user.totalCents, 0)).toBe(10000)
   })
 
+  it('supports zero-yuan items without affecting the allocation total', () => {
+    const result = computeDiningEventAllocation({
+      serviceChargeEnabled: true,
+      serviceChargeRateBps: 1000,
+      items: [
+        { id: 'free', name: '招待品', amountCents: 0, participantUserIds: ['alice', 'bob'], order: 0 },
+        { id: 'meal', name: '主餐', amountCents: 10000, participantUserIds: ['alice'], order: 1 },
+      ],
+    })
+
+    const byId = Object.fromEntries(result.users.map((user) => [user.userId, user]))
+    expect(result.subtotalCents).toBe(10000)
+    expect(result.serviceChargeCents).toBe(1000)
+    expect(byId.alice.items[0]).toMatchObject({ itemId: 'free', shareCents: 0 })
+    expect(byId.bob.items[0]).toMatchObject({ itemId: 'free', shareCents: 0 })
+    expect(result.totalCents).toBe(11000)
+  })
+
+  it('supports negative-yuan items as discounts', () => {
+    const result = computeDiningEventAllocation({
+      serviceChargeEnabled: true,
+      serviceChargeRateBps: 1000,
+      items: [
+        { id: 'meal', name: '主餐', amountCents: 10000, participantUserIds: ['alice'], order: 0 },
+        { id: 'discount', name: '折扣', amountCents: -2000, participantUserIds: ['bob'], order: 1 },
+      ],
+    })
+
+    const byId = Object.fromEntries(result.users.map((user) => [user.userId, user]))
+    expect(result.subtotalCents).toBe(8000)
+    expect(result.serviceChargeCents).toBe(800)
+    expect(byId.alice.totalCents).toBe(10800)
+    expect(byId.bob.totalCents).toBe(-2000)
+    expect(result.totalCents).toBe(8800)
+  })
+
   it('rejects invalid event data', () => {
     expect(() =>
       computeDiningEventAllocation({
@@ -91,6 +127,6 @@ describe('computeDiningEventAllocation', () => {
         serviceChargeRateBps: 1000,
         items: [{ id: 'x', name: '合點', amountCents: 1050, participantUserIds: ['a'], order: 0 }],
       }),
-    ).toThrow('非負整數元')
+    ).toThrow('整數元')
   })
 })
