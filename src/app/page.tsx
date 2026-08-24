@@ -29,6 +29,33 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
+        <CardHeader>
+          <CardTitle>我代墊待還款</CardTitle>
+          <CardDescription>依同事彙總尚未收回的消費款項</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.peers.filter((peer) => peer.theyOweMeCents > 0).length === 0 ? (
+            <p className="text-sm text-muted-foreground">目前沒有待還款的代墊款項。</p>
+          ) : (
+            <div className="space-y-2">
+              {data.peers
+                .filter((peer) => peer.theyOweMeCents > 0)
+                .map((peer) => (
+                  <Link
+                    key={peer.peerId}
+                    href={`/peers/${peer.peerId}`}
+                    className="flex items-center justify-between rounded-md border p-3 text-sm hover:bg-muted/60"
+                  >
+                    <span className="font-medium">{peer.peerUsername}</span>
+                    <span className="tabular-nums">{formatTwd(peer.theyOweMeCents)}</span>
+                  </Link>
+                ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)] shadow-[0_20px_50px_rgba(23,58,64,0.08)]">
           <CardHeader className="pb-2">
@@ -243,33 +270,6 @@ export default async function DashboardPage() {
               </TableBody>
               </Table>
             </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
-        <CardHeader>
-          <CardTitle>我代墊待還款</CardTitle>
-          <CardDescription>依同事彙總尚未收回的消費款項</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {data.peers.filter((peer) => peer.theyOweMeCents > 0).length === 0 ? (
-            <p className="text-sm text-muted-foreground">目前沒有待還款的代墊款項。</p>
-          ) : (
-            <div className="space-y-2">
-              {data.peers
-                .filter((peer) => peer.theyOweMeCents > 0)
-                .map((peer) => (
-                  <Link
-                    key={peer.peerId}
-                    href={`/peers/${peer.peerId}`}
-                    className="flex items-center justify-between rounded-md border p-3 text-sm hover:bg-muted/60"
-                  >
-                    <span className="font-medium">{peer.peerUsername}</span>
-                    <span className="tabular-nums">{formatTwd(peer.theyOweMeCents)}</span>
-                  </Link>
-                ))}
-            </div>
           )}
         </CardContent>
       </Card>
