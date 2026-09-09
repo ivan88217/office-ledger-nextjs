@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { EventOrderingControls } from '#/app/events/event-ordering-controls'
+import { canEditEventItems, isOrderingClosed } from '#/features/ledger/domain/event-ordering'
 import { Check, Copy, Maximize2, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -198,6 +200,28 @@ export function DiningEventClient({
 }) {
   const router = useRouter()
   const isFinalized = event.status === 'FINALIZED'
+  const [now, setNow] = useState(() => new Date(event.serverNow).getTime())
+  const isClosed = isOrderingClosed(event, now)
+  const itemsLocked = !canEditEventItems(event, event.currentUserId, now)
+  const isPayer = event.currentUserId === event.payerId
+  const dataVersionRef = useRef(event.updatedAt)
+
+  useEffect(() => {
+    const serverTime = new Date(event.serverNow).getTime()
+    const startedAt = performance.now()
+    setNow(serverTime)
+    if (!event.orderDeadline || event.ordersClosedAt || isFinalized) return
+    const deadline = new Date(event.orderDeadline).getTime()
+    let timer: number | undefined
+    const tick = () => {
+      const currentTime = serverTime + performance.now() - startedAt
+      setNow(currentTime)
+      const remaining = deadline - currentTime
+      if (remaining > 0) timer = window.setTimeout(tick, Math.min(remaining, 2147483647))
+    }
+    tick()
+    return () => window.clearTimeout(timer)
+  }, [event.serverNow, event.orderDeadline, event.ordersClosedAt, isFinalized])
   const [title, setTitle] = useState(event.title)
   const [payerId, setPayerId] = useState(event.payerId)
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(event.serviceChargeEnabled)
@@ -257,6 +281,7 @@ export function DiningEventClient({
     const localHasUnsavedSettings = localSignature !== savedSettingsSignatureRef.current
 
     setItems(mapEventItemsToEditableItems(event))
+    dataVersionRef.current = event.updatedAt
 
     if (!localHasUnsavedSettings) {
       setTitle(event.title)
@@ -304,7 +329,7 @@ export function DiningEventClient({
   }, [items, serviceChargeEnabled, serviceChargePercent])
 
   useEffect(() => {
-    if (isFinalized) return
+    if (itemsLocked || pendingAction || itemDialog) return
 
     const signature = eventSettingsSignature({
       title,
@@ -332,6 +357,7 @@ export function DiningEventClient({
           setError(response.message)
           return
         }
+        dataVersionRef.current = response.data.updatedAt
         savedSettingsSignatureRef.current = signature
         setAutoSaveStatus('saved')
         setError(null)
@@ -340,9 +366,10 @@ export function DiningEventClient({
     }, 700)
 
     return () => window.clearTimeout(timer)
-  }, [isFinalized, title, payerId, serviceChargeEnabled, serviceChargePercent, items, router])
+  }, [itemsLocked, pendingAction, itemDialog, title, payerId, serviceChargeEnabled, serviceChargePercent, items, router])
 
   function openCreateItemDialog() {
+    if (itemsLocked) return
     setItemDialogError(null)
     setItemDialog({
       mode: 'create',
@@ -351,6 +378,7 @@ export function DiningEventClient({
   }
 
   function openEditItemDialog(index: number) {
+    if (itemsLocked) return
     setItemDialogError(null)
     setItemDialog({
       mode: 'edit',
@@ -377,6 +405,7 @@ export function DiningEventClient({
     const serviceChargeRateBps = serviceChargeEnabled ? percentInputToBps(serviceChargePercent) : 0
     return {
       eventId: event.id,
+      expectedUpdatedAt: dataVersionRef.current,
       title,
       payerId,
       serviceChargeEnabled,
@@ -387,7 +416,7 @@ export function DiningEventClient({
 
   function onSubmitItemDialog(eventArg: React.FormEvent) {
     eventArg.preventDefault()
-    if (!itemDialog || isFinalized) return
+    if (!itemDialog || itemsLocked) return
     setItemDialogError(null)
     setError(null)
     setSuccess(null)
@@ -460,6 +489,7 @@ export function DiningEventClient({
           setItemDialogError(response.message)
           return
         }
+        dataVersionRef.current = response.data.updatedAt
         setItems(nextItems)
         setItemDialog(null)
         setSuccess('已更新品項')
@@ -471,7 +501,7 @@ export function DiningEventClient({
   }
 
   function onDeleteDialogItem() {
-    if (!itemDialog || itemDialog.mode !== 'edit' || typeof itemDialog.index !== 'number' || isFinalized) return
+    if (!itemDialog || itemDialog.mode !== 'edit' || typeof itemDialog.index !== 'number' || itemsLocked) return
     setItemDialogError(null)
     setError(null)
     setSuccess(null)
@@ -485,6 +515,7 @@ export function DiningEventClient({
           setItemDialogError(response.message)
           return
         }
+        dataVersionRef.current = response.data.updatedAt
         setItems(nextItems)
         setItemDialog(null)
         setSuccess('已刪除品項')
@@ -578,7 +609,7 @@ export function DiningEventClient({
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle>活動設定</CardTitle>
               <Badge variant={isFinalized ? 'secondary' : 'outline'}>
-                {isFinalized ? '已結算' : '草稿'}
+                {isFinalized ? '已結算' : isClosed ? '已結單' : '收單中'}
               </Badge>
             </div>
             <CardDescription>
@@ -617,6 +648,14 @@ export function DiningEventClient({
               </Alert>
             ) : null}
 
+            <EventOrderingControls
+              key={`${event.orderDeadline}:${event.ordersClosedAt}`}
+              event={event}
+              isClosed={isClosed}
+              disabled={pendingAction !== null || autoSaveStatus === 'saving'}
+              onChanged={() => router.refresh()}
+            />
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="title">活動名稱</Label>
@@ -625,12 +664,12 @@ export function DiningEventClient({
                   className="h-12"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  disabled={isFinalized}
+                  disabled={itemsLocked}
                 />
               </div>
               <div className="space-y-2">
                 <Label>統一付款人</Label>
-                <Select value={payerId} onValueChange={setPayerId} disabled={isFinalized}>
+                <Select value={payerId} onValueChange={setPayerId} disabled={isFinalized || !isPayer}>
                   <SelectTrigger className="h-12 w-full">
                     <SelectValue placeholder="選擇付款人" />
                   </SelectTrigger>
@@ -652,7 +691,7 @@ export function DiningEventClient({
                   className="h-4 w-4 accent-[color:var(--lagoon-deep)]"
                   checked={serviceChargeEnabled}
                   onChange={(event) => setServiceChargeEnabled(event.target.checked)}
-                  disabled={isFinalized}
+                  disabled={itemsLocked}
                 />
                 收服務費
               </label>
@@ -664,7 +703,7 @@ export function DiningEventClient({
                   inputMode="decimal"
                   value={serviceChargePercent}
                   onChange={(event) => setServiceChargePercent(event.target.value)}
-                  disabled={isFinalized || !serviceChargeEnabled}
+                  disabled={itemsLocked || !serviceChargeEnabled}
                 />
               </div>
             </div>
@@ -692,7 +731,7 @@ export function DiningEventClient({
                   <Copy className="mr-2 h-4 w-4" />
                   複製活動連結
                 </Button>
-                {event.currentUserId === payerId ? (
+                {isPayer ? (
                   <Button
                     type="button"
                     variant="destructive"
@@ -704,7 +743,7 @@ export function DiningEventClient({
                     {pendingAction === 'delete-event' ? '刪除中…' : '刪除活動'}
                   </Button>
                 ) : null}
-                {event.currentUserId === payerId ? (
+                {isPayer ? (
                   <Button
                     type="button"
                     className="h-11"
@@ -726,7 +765,7 @@ export function DiningEventClient({
                 <CardTitle>品項</CardTitle>
                 <CardDescription>新增、修改與刪除都會立即儲存。</CardDescription>
               </div>
-              {!isFinalized ? (
+              {!itemsLocked ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -743,7 +782,7 @@ export function DiningEventClient({
             {items.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[color:var(--line)] bg-[color:var(--surface)] p-6 text-center">
                 <p className="text-sm text-muted-foreground">尚未有人新增品項。</p>
-                {!isFinalized ? (
+                {!itemsLocked ? (
                   <Button type="button" className="mt-4" onClick={openCreateItemDialog}>
                     <Plus className="mr-2 h-4 w-4" />
                     新增第一個品項
@@ -758,7 +797,7 @@ export function DiningEventClient({
                     type="button"
                     className="block w-full rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 text-left transition hover:bg-[color:var(--surface-strong)] disabled:cursor-default disabled:hover:bg-[color:var(--surface)]"
                     onClick={() => openEditItemDialog(index)}
-                    disabled={isFinalized}
+                    disabled={itemsLocked}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -951,6 +990,7 @@ export function DiningEventClient({
           </div>
 
           <form onSubmit={onSubmitItemDialog} className="space-y-5">
+            {itemsLocked && <p role="alert" className="text-sm text-destructive">活動已結單或結算，無法儲存品項變更。</p>}
             {itemDialogError ? (
               <Alert variant="destructive">
                 <AlertDescription>{itemDialogError}</AlertDescription>
@@ -961,6 +1001,7 @@ export function DiningEventClient({
               <div className="space-y-2">
                 <Label htmlFor="itemName">品名</Label>
                 <Input
+                  disabled={itemsLocked}
                   id="itemName"
                   className="h-12"
                   value={itemDialog.item.name}
@@ -972,6 +1013,7 @@ export function DiningEventClient({
               <div className="space-y-2">
                 <Label htmlFor="itemAmount">金額（元）</Label>
                 <Input
+                  disabled={itemsLocked}
                   id="itemAmount"
                   className="h-12"
                   inputMode="decimal"
@@ -997,6 +1039,7 @@ export function DiningEventClient({
                           ? 'border-[color:var(--lagoon-deep)] bg-[color:var(--chip-bg)] text-[color:var(--sea-ink)]'
                           : 'border-[color:var(--line)] bg-background text-muted-foreground hover:bg-muted',
                       )}
+                      disabled={itemsLocked}
                       onClick={() => toggleDialogParticipant(user.id)}
                     >
                       {selected ? <Check className="h-3.5 w-3.5" /> : null}
@@ -1019,7 +1062,7 @@ export function DiningEventClient({
                   type="button"
                   variant="destructive"
                   onClick={onDeleteDialogItem}
-                  disabled={pendingAction === 'item'}
+                  disabled={pendingAction === 'item' || itemsLocked}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   刪除
@@ -1036,7 +1079,7 @@ export function DiningEventClient({
               >
                 取消
               </Button>
-              <Button type="submit" disabled={pendingAction === 'item'}>
+              <Button type="submit" disabled={pendingAction === 'item' || itemsLocked}>
                 {pendingAction === 'item'
                   ? '儲存中…'
                   : itemDialog.mode === 'edit'

@@ -98,6 +98,8 @@ model DiningEvent {
   serviceChargeEnabled   Boolean           @default(true)
   serviceChargeRateBps   Int               @default(1000)
   status                 DiningEventStatus @default(DRAFT)
+  orderDeadline          DateTime?
+  ordersClosedAt         DateTime?
   finalizedTransactionId String?           @db.ObjectId
   items                  DiningEventItem[]
   createdAt              DateTime          @default(now())

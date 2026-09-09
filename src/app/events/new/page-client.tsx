@@ -1,5 +1,6 @@
 'use client'
 
+import { taipeiDeadlineInput } from '#/features/ledger/domain/event-ordering'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { createDiningEventAction } from '#/features/auth/actions'
@@ -21,6 +22,7 @@ export function NewDiningEventForm({
 }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
+  const [deadline, setDeadline] = useState('')
   const [payerId, setPayerId] = useState(currentUserId ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -36,7 +38,14 @@ export function NewDiningEventForm({
     setError(null)
 
     startTransition(async () => {
-      const response = await createDiningEventAction({ title, payerId })
+      let orderDeadline: string | null = null
+      try {
+        if (payerId === currentUserId && deadline) orderDeadline = taipeiDeadlineInput(deadline)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '請輸入有效結單時間')
+        return
+      }
+      const response = await createDiningEventAction({ title, payerId, orderDeadline })
       if (!response.ok) {
         setError(response.message)
         return
@@ -95,6 +104,12 @@ export function NewDiningEventForm({
                 </SelectContent>
               </Select>
             </div>
+
+            {payerId === currentUserId && <div className="space-y-2">
+              <Label htmlFor="new-deadline">結單時間（選填，台北時間 UTC+8）</Label>
+              <Input id="new-deadline" type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+              <p className="text-sm text-muted-foreground">留白則持續開放，可由付款人稍後手動結單。</p>
+            </div>}
 
             <Button
               type="submit"

@@ -96,6 +96,7 @@ export async function createExpenseTransactionAction(input: {
 }
 
 export async function createDiningEventAction(input: {
+  orderDeadline?: string | null
   title: string
   payerId: string
 }) {
@@ -107,7 +108,23 @@ export async function createDiningEventAction(input: {
   })
 }
 
+export async function setDiningEventOrderingAction(input: {
+  eventId: string
+  expectedUpdatedAt: string
+  mode: 'close' | 'open'
+  orderDeadline?: string | null
+}) {
+  return runAction(async () => {
+    const result = await authService.setDiningEventOrdering(input)
+    revalidateLedgerPaths()
+    revalidatePath('/events')
+    revalidatePath(`/events/${input.eventId}`)
+    return result
+  })
+}
+
 export async function updateDiningEventAction(input: {
+  expectedUpdatedAt: string
   eventId: string
   title: string
   payerId: string

@@ -1,3 +1,5 @@
+import { canEditEventItems, parseOrderDeadline } from '#/features/ledger/domain/event-ordering'
+import type { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { DiningEventStatus, PrepaymentRequestKind, PrepaymentRequestStatus } from '@prisma/client'
 import { prisma } from '#/lib/db/prisma'
@@ -225,6 +227,9 @@ export async function getDiningEventDetail(input: { eventId: string }) {
     serviceChargeRateBps: event.serviceChargeRateBps,
     status: event.status,
     finalizedTransactionId: event.finalizedTransactionId,
+    orderDeadline: event.orderDeadline?.toISOString() ?? null,
+    ordersClosedAt: event.ordersClosedAt?.toISOString() ?? null,
+    serverNow: new Date().toISOString(),
     finalizedTransactionTitle: finalizedTransaction?.title ?? null,
     createdAt: event.createdAt.toISOString(),
     updatedAt: event.updatedAt.toISOString(),
@@ -300,6 +305,8 @@ export async function listDiningEvents() {
         payerId: event.payerId,
         payerUsername: event.payer.username,
         status: event.status,
+        orderDeadline: event.orderDeadline?.toISOString() ?? null,
+        ordersClosedAt: event.ordersClosedAt?.toISOString() ?? null,
         itemCount: event.items.length,
         participantCount: participantIds.length,
         participantUsernames: participantIds
@@ -406,8 +413,10 @@ async function validateDiningEventUsers(params: {
   if (users.length !== userIds.length) throw new Error('活動包含不存在的使用者')
 }
 
-export async function createDiningEvent(input: { title: string; payerId: string }) {
-  await requireSessionUser()
+export async function createDiningEvent(input: { title: string; payerId: string; orderDeadline?: string | null }) {
+  const user = await requireSessionUser()
+  const orderDeadline = parseOrderDeadline(input.orderDeadline ?? null)
+  if (orderDeadline && input.payerId !== user.id) throw new Error('只有付款人可設定結單時間')
 
   const title = normalizeDiningEventTitle(input.title)
   await validateDiningEventUsers({ payerId: input.payerId, participantUserIds: [] })
@@ -416,6 +425,7 @@ export async function createDiningEvent(input: { title: string; payerId: string 
     data: {
       title,
       payerId: input.payerId,
+      orderDeadline,
       serviceChargeEnabled: true,
       serviceChargeRateBps: 1000,
       status: DiningEventStatus.DRAFT,
@@ -426,15 +436,65 @@ export async function createDiningEvent(input: { title: string; payerId: string 
   return { ok: true as const, eventId: event.id }
 }
 
+function nextEventVersion(previous: Date) {
+  return new Date(Math.max(Date.now(), previous.getTime() + 1))
+}
+
+function assertEventWritten(count: number) {
+  if (count !== 1) throw new Error('活動已更新或結單，請重新整理後再操作')
+}
+
+function eventWriteFilter(event: { id: string; payerId: string; updatedAt: Date }, userId: string): Prisma.DiningEventWhereInput {
+  return {
+    id: event.id,
+    status: DiningEventStatus.DRAFT,
+    payerId: event.payerId,
+    updatedAt: event.updatedAt,
+    ...(event.payerId === userId ? {} : {
+      AND: [
+        { OR: [{ ordersClosedAt: null }, { ordersClosedAt: { isSet: false } }] },
+        { OR: [{ orderDeadline: null }, { orderDeadline: { isSet: false } }, { orderDeadline: { gt: new Date() } }] },
+      ],
+    }),
+  }
+}
+
+export async function setDiningEventOrdering(input: {
+  eventId: string
+  expectedUpdatedAt: string
+  mode: 'close' | 'open'
+  orderDeadline?: string | null
+}) {
+  const user = await requireSessionUser()
+  const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
+  if (!event) throw new Error('找不到活動')
+  if (event.status !== DiningEventStatus.DRAFT) throw new Error('已結算活動不能重新開放或變更結單設定')
+  if (event.payerId !== user.id) throw new Error('只有付款人可管理收單')
+  if (input.expectedUpdatedAt !== event.updatedAt.toISOString()) throw new Error('活動已更新，請重新整理後再操作')
+  if (input.mode !== 'close' && input.mode !== 'open') throw new Error('無效的收單操作')
+  const orderDeadline = input.mode === 'open' ? parseOrderDeadline(input.orderDeadline ?? null) : event.orderDeadline
+  const result = await prisma.diningEvent.updateMany({
+    where: eventWriteFilter(event, user.id),
+    data: {
+      orderDeadline,
+      ordersClosedAt: input.mode === 'close' ? new Date() : null,
+      updatedAt: nextEventVersion(event.updatedAt),
+    },
+  })
+  assertEventWritten(result.count)
+  return { ok: true as const, eventId: event.id }
+}
+
 export async function updateDiningEvent(input: {
   eventId: string
+  expectedUpdatedAt: string
   title: string
   payerId: string
   serviceChargeEnabled: boolean
   serviceChargeRateBps: number
   items: DiningEventItemInput[]
 }) {
-  await requireSessionUser()
+  const user = await requireSessionUser()
 
   const title = normalizeDiningEventTitle(input.title)
   const serviceChargeRateBps = normalizeServiceChargeRateBps(input.serviceChargeRateBps)
@@ -455,11 +515,15 @@ export async function updateDiningEvent(input: {
 
   const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
   if (!event) throw new Error('找不到活動')
-  if (event.status !== DiningEventStatus.DRAFT) throw new Error('活動已結算，不能再編輯')
+  if (!canEditEventItems(event, user.id)) throw new Error('活動已結單或結算，不能再編輯')
+  if (event.payerId !== user.id && input.payerId !== event.payerId) throw new Error('只有付款人可更換付款人')
+  if (input.expectedUpdatedAt !== event.updatedAt.toISOString()) throw new Error('活動已更新，請重新整理後再操作')
 
-  await prisma.diningEvent.update({
-    where: { id: input.eventId },
+  const updatedAt = nextEventVersion(event.updatedAt)
+  const result = await prisma.diningEvent.updateMany({
+    where: eventWriteFilter(event, user.id),
     data: {
+      updatedAt,
       title,
       payerId: input.payerId,
       serviceChargeEnabled: input.serviceChargeEnabled,
@@ -468,7 +532,8 @@ export async function updateDiningEvent(input: {
     },
   })
 
-  return { ok: true as const, eventId: input.eventId }
+  assertEventWritten(result.count)
+  return { ok: true as const, eventId: input.eventId, updatedAt: updatedAt.toISOString() }
 }
 
 export async function addDiningEventItem(input: {
@@ -482,7 +547,7 @@ export async function addDiningEventItem(input: {
 
   const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
   if (!event) throw new Error('找不到活動')
-  if (event.status !== DiningEventStatus.DRAFT) throw new Error('活動已結算，不能再新增品項')
+  if (!canEditEventItems(event, userId)) throw new Error('活動已結單或結算，不能再新增品項')
 
   const item = {
     id: crypto.randomUUID(),
@@ -503,10 +568,12 @@ export async function addDiningEventItem(input: {
     participantUserIds: [...input.participantUserIds, userId],
   })
 
-  await prisma.diningEvent.update({
-    where: { id: input.eventId },
-    data: { items: [...event.items, item] },
+  const updatedAt = nextEventVersion(event.updatedAt)
+  const result = await prisma.diningEvent.updateMany({
+    where: eventWriteFilter(event, userId),
+    data: { items: { push: item }, updatedAt },
   })
+  assertEventWritten(result.count)
 
   return { ok: true as const, eventId: input.eventId, itemId: item.id }
 }

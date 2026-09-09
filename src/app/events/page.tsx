@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { isOrderingClosed } from '#/features/ledger/domain/event-ordering'
 import { redirect } from 'next/navigation'
 import { CalendarDays, Plus } from 'lucide-react'
 import { getSessionUser, listDiningEvents } from '#/features/auth/auth.service'
@@ -41,7 +42,7 @@ export default async function DiningEventsPage() {
 
       <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
-          <CardTitle>可加入活動</CardTitle>
+          <CardTitle>未結算活動</CardTitle>
           <CardDescription>尚未結算的活動都會出現在這裡。</CardDescription>
         </CardHeader>
         <CardContent>
@@ -69,7 +70,7 @@ export default async function DiningEventsPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="truncate font-semibold text-foreground">{event.title}</h2>
-                        <Badge variant="outline">進行中</Badge>
+                        <Badge variant="outline">{isOrderingClosed(event) ? '已結單' : '收單中'}</Badge>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">付款人：{event.payerUsername}</p>
                     </div>
