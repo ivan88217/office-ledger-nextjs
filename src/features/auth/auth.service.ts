@@ -1034,16 +1034,8 @@ export async function getDashboard() {
       }
     })
     .sort((a, b) => {
-      const totalA =
-        Math.abs(a.theyOweMeCents) +
-        Math.abs(a.iOweCents) +
-        Math.abs(a.myPrepaymentBalanceCents) +
-        Math.abs(a.peerPrepaymentBalanceCents)
-      const totalB =
-        Math.abs(b.theyOweMeCents) +
-        Math.abs(b.iOweCents) +
-        Math.abs(b.myPrepaymentBalanceCents) +
-        Math.abs(b.peerPrepaymentBalanceCents)
+      const totalA = Math.abs(a.theyOweMeCents) + Math.abs(a.iOweCents)
+      const totalB = Math.abs(b.theyOweMeCents) + Math.abs(b.iOweCents)
       if (totalB !== totalA) return totalB - totalA
       return a.peerUsername.localeCompare(b.peerUsername)
     })
