@@ -7,6 +7,7 @@ import { formatTwd } from '#/lib/money/amount'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
+import { ScrollArea } from '#/components/ui/scroll-area'
 
 export default async function DiningEventsPage() {
   const { user } = await getSessionUser()
@@ -107,25 +108,29 @@ export default async function DiningEventsPage() {
           <CardHeader>
             <CardTitle>已結算活動</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {finalizedEvents.slice(0, 10).map((event) => (
-              <Link
-                key={event.id}
-                href={`/events/${event.id}`}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 transition hover:bg-[color:var(--surface-strong)]"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{event.title}</p>
-                  <p className="text-xs text-muted-foreground">付款人：{event.payerUsername}</p>
-                </div>
-                <div className="text-right">
-                  <Badge variant="secondary">已結算</Badge>
-                  <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
-                    {formatTwd(event.totalCents)}
-                  </p>
-                </div>
-              </Link>
-            ))}
+          <CardContent>
+            <ScrollArea className="h-[320px] pr-4">
+              <div className="space-y-2">
+                {finalizedEvents.map((event) => (
+                  <Link
+                    key={event.id}
+                    href={`/events/${event.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 transition hover:bg-[color:var(--surface-strong)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{event.title}</p>
+                      <p className="text-xs text-muted-foreground">付款人：{event.payerUsername}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="secondary">已結算</Badge>
+                      <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                        {formatTwd(event.totalCents)}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       ) : null}
