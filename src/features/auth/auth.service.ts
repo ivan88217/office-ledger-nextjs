@@ -1033,7 +1033,20 @@ export async function getDashboard() {
         pendingIncomingPrepaymentCount: pendingCountByPeerId.get(peerId) ?? 0,
       }
     })
-    .sort((a, b) => a.peerUsername.localeCompare(b.peerUsername))
+    .sort((a, b) => {
+      const totalA =
+        Math.abs(a.theyOweMeCents) +
+        Math.abs(a.iOweCents) +
+        Math.abs(a.myPrepaymentBalanceCents) +
+        Math.abs(a.peerPrepaymentBalanceCents)
+      const totalB =
+        Math.abs(b.theyOweMeCents) +
+        Math.abs(b.iOweCents) +
+        Math.abs(b.myPrepaymentBalanceCents) +
+        Math.abs(b.peerPrepaymentBalanceCents)
+      if (totalB !== totalA) return totalB - totalA
+      return a.peerUsername.localeCompare(b.peerUsername)
+    })
 
   const recentLogs = await prisma.paymentLog.findMany({
     where: { OR: [{ fromUserId: userId }, { toUserId: userId }] },
