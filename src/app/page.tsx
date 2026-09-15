@@ -179,7 +179,8 @@ export default async function DashboardPage() {
             <p className="text-sm text-muted-foreground">你目前沒有墊款交易。</p>
           ) : (
             <>
-              <div className="space-y-3 md:hidden">
+              <ScrollArea className="h-[320px] pr-4 md:hidden">
+                <div className="space-y-3">
                 {data.paidTransactions.map((transaction) => {
                   const isSettled = transaction.outstandingCents === 0
                   return (
@@ -225,15 +226,17 @@ export default async function DashboardPage() {
                     </Link>
                   )
                 })}
-              </div>
-              <Table className="responsive-table">
+                </div>
+              </ScrollArea>
+              <ScrollArea className="hidden h-[320px] pr-4 md:block">
+              <Table className="responsive-table" style={{ tableLayout: 'fixed' }}>
               <TableHeader>
                 <TableRow>
                   <TableHead>交易</TableHead>
-                  <TableHead>日期</TableHead>
-                  <TableHead className="text-right">總金額</TableHead>
-                  <TableHead className="text-right">別人應還</TableHead>
-                  <TableHead className="text-right">尚未收回</TableHead>
+                  <TableHead className="w-[130px] text-right">日期</TableHead>
+                  <TableHead className="w-[110px] text-right">總金額</TableHead>
+                  <TableHead className="w-[110px] text-right">別人應還</TableHead>
+                  <TableHead className="w-[100px] text-right">尚未收</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -241,14 +244,14 @@ export default async function DashboardPage() {
                   const isSettled = transaction.outstandingCents === 0
                   return (
                     <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="overflow-hidden align-middle">
                         <Link
                           href={`/transactions/${transaction.id}`}
-                          className="flex items-center gap-2 hover:underline"
+                          className="flex min-w-0 items-center gap-2 hover:underline"
                         >
-                          <span>{transaction.title}</span>
+                          <span className="truncate">{transaction.title}</span>
                           {isSettled ? (
-                            <Badge variant="secondary">已結清</Badge>
+                            <Badge variant="secondary" className="shrink-0">已結清</Badge>
                           ) : null}
                         </Link>
                       </TableCell>
@@ -269,6 +272,7 @@ export default async function DashboardPage() {
                 })}
               </TableBody>
               </Table>
+              </ScrollArea>
             </>
           )}
         </CardContent>
