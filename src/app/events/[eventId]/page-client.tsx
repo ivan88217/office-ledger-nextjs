@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { EventOrderingControls } from '#/app/events/event-ordering-controls'
-import { canEditEventItems, isOrderingClosed } from '#/features/ledger/domain/event-ordering'
+import { canEditEventItems, isOrderingClosed, toTaipeiDateTimeInput } from '#/features/ledger/domain/event-ordering'
 import { Check, Copy, Maximize2, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -114,6 +114,15 @@ function eventSettingsSignature(input: {
   serviceChargePercent: string
 }) {
   return JSON.stringify(input)
+}
+
+function formatCopyDeadline(value: string) {
+  const [deadlineDate, time] = toTaipeiDateTimeInput(value).split('T')
+  const [todayDate] = toTaipeiDateTimeInput(new Date().toISOString()).split('T')
+  if (deadlineDate === todayDate) return `${time}結單`
+
+  const [, month, day] = deadlineDate.split('-')
+  return `${Number(month)}/${Number(day)} ${time}結單`
 }
 
 function mapEventItemsToEditableItems(event: DiningEventDetail): EditableItem[] {
@@ -536,6 +545,18 @@ export function DiningEventClient({
     }
   }
 
+  async function onCopyShareText() {
+    setShareStatus(null)
+    const deadline = event.orderDeadline ? formatCopyDeadline(event.orderDeadline) : null
+    const text = [title.trim() || event.title, window.location.href, deadline].filter(Boolean).join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setShareStatus('已複製活動文案')
+    } catch {
+      setShareStatus('無法自動複製，請直接複製活動資訊')
+    }
+  }
+
   function onFinalize() {
     if (isFinalized) return
     setError(null)
@@ -599,6 +620,18 @@ export function DiningEventClient({
   const allocation = isFinalized ? event.allocation : preview.allocation
   const previewError = isFinalized ? null : preview.error
   const payerName = userNameById.get(payerId) ?? payerId
+  const shareButtons = (
+    <>
+      <Button type="button" variant="outline" className="h-11" onClick={onCopyShareLink}>
+        <Copy className="mr-2 h-4 w-4" />
+        複製活動連結
+      </Button>
+      <Button type="button" variant="outline" className="h-11" onClick={onCopyShareText}>
+        <Copy className="mr-2 h-4 w-4" />
+        複製文案
+      </Button>
+    </>
+  )
 
   return (
     <>
@@ -710,10 +743,7 @@ export function DiningEventClient({
 
             {isFinalized && event.finalizedTransactionId ? (
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button type="button" variant="outline" className="h-11" onClick={onCopyShareLink}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  複製活動連結
-                </Button>
+                {shareButtons}
                 <Button
                   variant="outline"
                   className="h-11 rounded-lg border-[color:var(--line)] bg-[color:var(--surface-strong)] text-[color:var(--sea-ink)] hover:bg-[color:var(--chip-bg)] hover:text-[color:var(--lagoon-deep)] dark:text-[color:var(--foreground)] dark:hover:text-[color:var(--lagoon)]"
@@ -727,10 +757,7 @@ export function DiningEventClient({
               </div>
             ) : (
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button type="button" variant="outline" className="h-11" onClick={onCopyShareLink}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  複製活動連結
-                </Button>
+                {shareButtons}
                 {isPayer ? (
                   <Button
                     type="button"
