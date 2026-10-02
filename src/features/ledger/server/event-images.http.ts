@@ -11,7 +11,7 @@ export async function handleImageRequest(work: () => Promise<Response>) {
     return await work()
   } catch (error) {
     const known = error instanceof EventImageError
-    if (!known) console.error('活動圖片服務暫時無法使用')
+    if (!known) console.error('活動圖片服務暫時無法使用', JSON.stringify(error))
     return Response.json(
       { message: known ? error.message : '圖片服務暫時無法使用，請稍後再試' },
       {
