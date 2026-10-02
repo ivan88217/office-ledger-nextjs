@@ -67,47 +67,75 @@ export function EventImages({ eventId, isPayer }: { eventId: string; isPayer: bo
     }
   }, [loadImages])
 
-  async function uploadFiles(files: File[]) {
-    if (!isPayer || busyRef.current || !files.length) return
-    if (files.length + images.length > MAX_EVENT_IMAGES) {
-      setError(
-        `每個活動最多可放 ${MAX_EVENT_IMAGES} 張圖片，目前還可新增 ${Math.max(0, MAX_EVENT_IMAGES - images.length)} 張`,
-      )
-      return
-    }
-    busyRef.current = true
-    requestVersion.current++
-    setBusy(true)
-    setError(null)
-    setFailed([])
-    const failures: { file: File; message: string }[] = []
-    for (const [index, file] of files.entries()) {
-      setProgress(`正在上傳 ${index + 1}/${files.length}：${file.name}`)
-      const invalid = validateImageSelection(file)
-      if (invalid) {
-        failures.push({ file, message: invalid })
-        continue
-      }
-      try {
-        const form = new FormData()
-        form.append('image', file)
-        const body = await responseBody<{ image: EventImage }>(
-          await fetch(`/api/events/${eventId}/images`, { method: 'POST', body: form }),
+  const uploadFiles = useCallback(
+    async (files: File[]) => {
+      if (!isPayer || busyRef.current || !files.length) return
+      if (files.length + images.length > MAX_EVENT_IMAGES) {
+        setError(
+          `每個活動最多可放 ${MAX_EVENT_IMAGES} 張圖片，目前還可新增 ${Math.max(0, MAX_EVENT_IMAGES - images.length)} 張`,
         )
-        setImages((current) => [...current.filter((image) => image.id !== body.image.id), body.image])
-      } catch (reason) {
-        failures.push({
-          file,
-          message: reason instanceof Error ? reason.message : '圖片上傳失敗，請稍後再試',
-        })
+        return
       }
+      busyRef.current = true
+      requestVersion.current++
+      setBusy(true)
+      setError(null)
+      setFailed([])
+      const failures: { file: File; message: string }[] = []
+      for (const [index, file] of files.entries()) {
+        setProgress(`正在上傳 ${index + 1}/${files.length}：${file.name}`)
+        const invalid = validateImageSelection(file)
+        if (invalid) {
+          failures.push({ file, message: invalid })
+          continue
+        }
+        try {
+          const form = new FormData()
+          form.append('image', file)
+          const body = await responseBody<{ image: EventImage }>(
+            await fetch(`/api/events/${eventId}/images`, { method: 'POST', body: form }),
+          )
+          setImages((current) => [...current.filter((image) => image.id !== body.image.id), body.image])
+        } catch (reason) {
+          failures.push({
+            file,
+            message: reason instanceof Error ? reason.message : '圖片上傳失敗，請稍後再試',
+          })
+        }
+      }
+      setFailed(failures)
+      setProgress(
+        failures.length ? `已完成，${failures.length} 張圖片未上傳` : `已上傳 ${files.length} 張圖片`,
+      )
+      busyRef.current = false
+      setBusy(false)
+      void loadImages()
+    },
+    [isPayer, images.length, eventId, loadImages],
+  )
+
+  useEffect(() => {
+    if (!isPayer || loading) return
+    function onPaste(event: ClipboardEvent) {
+      if (event.defaultPrevented || busyRef.current) return
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          'input, textarea, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="dialog"]',
+        )
+      )
+        return
+      const files = Array.from(event.clipboardData?.items ?? [])
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null)
+      if (!files.length) return
+      event.preventDefault()
+      void uploadFiles(files)
     }
-    setFailed(failures)
-    setProgress(failures.length ? `已完成，${failures.length} 張圖片未上傳` : `已上傳 ${files.length} 張圖片`)
-    busyRef.current = false
-    setBusy(false)
-    void loadImages()
-  }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [isPayer, loading, uploadFiles])
 
   async function confirmDelete() {
     if (!deleteImage || !isPayer || busyRef.current) return
@@ -179,7 +207,7 @@ export function EventImages({ eventId, isPayer }: { eventId: string; isPayer: bo
               {busy ? '處理中…' : '上傳圖片'}
             </Button>
             <p className="mt-2 text-xs text-muted-foreground">
-              可一次選多張，也可拖曳到這裡。支援 JPEG、PNG、WebP，每張最多 10 MB。
+              可多選、拖曳，或在此頁按 ⌘V／Ctrl+V 貼上圖片。支援 JPEG、PNG、WebP，每張最多 10 MB。
             </p>
           </div>
         ) : (

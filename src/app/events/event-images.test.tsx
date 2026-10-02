@@ -13,6 +13,21 @@ const menu: EventImage = {
 let saved: EventImage[]
 let nextId: number
 const fetchMock = vi.fn()
+
+function paste(target: Element, files: File[] = []) {
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      items: [
+        { kind: 'string', type: 'text/plain', getAsFile: () => null },
+        ...files.map((file) => ({ kind: 'file', type: file.type, getAsFile: () => file })),
+      ],
+    },
+  })
+  fireEvent(target, event)
+  return event
+}
+
 beforeEach(() => {
   saved = [menu]
   nextId = 1
@@ -67,6 +82,64 @@ describe('活動圖片介面', () => {
     expect(screen.getByRole('button', { name: '放大 收據.png' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '放大 飲料.jpg' })).toBeTruthy()
     expect(saved).toHaveLength(3)
+  })
+  it('付款人可直接貼上多張剪貼簿圖片，保留既有圖片', async () => {
+    render(<EventImages eventId={eventId} isPayer />)
+    await screen.findByRole('button', { name: '放大 菜單.png' })
+    const event = paste(document.body, [
+      new File(['screenshot'], 'image.png', { type: 'image/png' }),
+      new File(['receipt'], '收據.jpg', { type: 'image/jpeg' }),
+    ])
+    await screen.findByText('已上傳 2 張圖片')
+    expect(event.defaultPrevented).toBe(true)
+    expect(saved.map((image) => image.fileName)).toEqual(['菜單.png', 'image.png', '收據.jpg'])
+  })
+  it('非付款人或失去付款人權限後，貼上圖片不會上傳', async () => {
+    const { rerender } = render(<EventImages eventId={eventId} isPayer />)
+    await screen.findByRole('button', { name: '放大 菜單.png' })
+    rerender(<EventImages eventId={eventId} isPayer={false} />)
+    const event = paste(document.body, [new File(['x'], 'image.png', { type: 'image/png' })])
+    expect(event.defaultPrevented).toBe(false)
+    expect(saved).toHaveLength(1)
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+  it('保留文字與文字編輯區的貼上行為', async () => {
+    render(
+      <>
+        <input aria-label="活動名稱" />
+        <textarea aria-label="備註" />
+        <div contentEditable suppressContentEditableWarning>
+          <span data-testid="editable-text">可編輯文字</span>
+        </div>
+        <EventImages eventId={eventId} isPayer />
+      </>,
+    )
+    await screen.findByRole('button', { name: '放大 菜單.png' })
+    const image = new File(['x'], 'image.png', { type: 'image/png' })
+    for (const target of [
+      screen.getByLabelText('活動名稱'),
+      screen.getByLabelText('備註'),
+      screen.getByTestId('editable-text'),
+    ]) {
+      expect(paste(target, [image]).defaultPrevented).toBe(false)
+    }
+    expect(paste(document.body).defaultPrevented).toBe(false)
+    expect(saved).toHaveLength(1)
+  })
+  it('貼上不支援的圖片時顯示錯誤，不送出上傳', async () => {
+    render(<EventImages eventId={eventId} isPayer />)
+    await screen.findByRole('button', { name: '放大 菜單.png' })
+    paste(document.body, [new File(['gif'], 'image.gif', { type: 'image/gif' })])
+    await screen.findByText(/image.gif：請選擇 JPEG/)
+    expect(saved).toHaveLength(1)
+  })
+  it('離開活動圖片介面後不再接收貼上事件', async () => {
+    const { unmount } = render(<EventImages eventId={eventId} isPayer />)
+    await screen.findByRole('button', { name: '放大 菜單.png' })
+    unmount()
+    const event = paste(document.body, [new File(['x'], 'image.png', { type: 'image/png' })])
+    expect(event.defaultPrevented).toBe(false)
+    expect(saved).toHaveLength(1)
   })
   it('一張失敗不影響其他圖片，重試只補上失敗檔案', async () => {
     const standard = fetchMock.getMockImplementation()!
