@@ -2,11 +2,12 @@ FROM oven/bun:1 AS builder
 
 WORKDIR /app
 
-COPY package.json bun.lock prisma ./
+COPY package.json bun.lock ./
+COPY prisma ./prisma
 
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ENV DATABASE_URL="mongodb://localhost:27017/office-ledger-build"
 
-RUN bun install
+RUN bun install --frozen-lockfile
 
 COPY . .
 

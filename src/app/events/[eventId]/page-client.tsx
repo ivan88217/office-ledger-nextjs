@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { EventOrderingControls } from '#/app/events/event-ordering-controls'
+import { EventImages } from '#/app/events/event-images'
 import { canEditEventItems, isOrderingClosed, toTaipeiDateTimeInput } from '#/features/ledger/domain/event-ordering'
 import { Check, Copy, Maximize2, Plus, ReceiptText, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -784,6 +785,8 @@ export function DiningEventClient({
             )}
           </CardContent>
         </Card>
+
+        <EventImages key={event.id} eventId={event.id} isPayer={isPayer} />
 
         <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>

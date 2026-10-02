@@ -5,6 +5,7 @@ import { DiningEventClient } from './page-client'
 
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), update: vi.fn(), writeText: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, push: vi.fn() }) }))
+vi.mock('#/app/events/event-images', () => ({ EventImages: () => null }))
 vi.mock('#/features/auth/actions', () => ({
   addDiningEventItemAction: vi.fn(), deleteDiningEventAction: vi.fn(), finalizeDiningEventAction: vi.fn(),
   updateDiningEventAction: mocks.update, setDiningEventOrderingAction: vi.fn(),

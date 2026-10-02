@@ -1,0 +1,9 @@
+.git
+.credentials
+.env
+.env.*
+.next
+node_modules
+coverage
+tsconfig.tsbuildinfo
+.compound-engineering

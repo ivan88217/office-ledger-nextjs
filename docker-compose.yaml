@@ -7,6 +7,14 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.credentials/gcs.json
     env_file:
       - .env
+    volumes:
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS:-./.credentials/gcs.json}
+        target: /app/.credentials/gcs.json
+        read_only: true
+        bind:
+          create_host_path: false
     restart: unless-stopped

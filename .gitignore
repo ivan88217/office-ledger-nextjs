@@ -1,6 +1,7 @@
 .next
 node_modules
 .env
+.credentials/
 coverage
 tsconfig.tsbuildinfo
 .compound-engineering/*.local.yaml

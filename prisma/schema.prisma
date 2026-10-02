@@ -33,6 +33,12 @@ enum DiningEventStatus {
   FINALIZED
 }
 
+enum DiningEventImageStatus {
+  PENDING
+  READY
+  DELETING
+}
+
 type TransactionParticipant {
   userId         String @db.ObjectId
   originalCents  Int
@@ -104,10 +110,26 @@ model DiningEvent {
   items                  DiningEventItem[]
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
+  imageMutationToken     String?
 
   @@index([payerId, status])
   @@index([finalizedTransactionId])
   @@index([createdAt])
+}
+
+model DiningEventImage {
+  id               String                 @id @default(auto()) @map("_id") @db.ObjectId
+  eventId          String                 @db.ObjectId
+  uploadedByUserId String                 @db.ObjectId
+  objectName       String                 @unique
+  fileName         String
+  sizeBytes        Int
+  status           DiningEventImageStatus @default(PENDING)
+  cleanupAfter     DateTime?
+  createdAt        DateTime               @default(now())
+
+  @@index([eventId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model PaymentLog {

@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { DiningEventStatus, PrepaymentRequestKind, PrepaymentRequestStatus } from '@prisma/client'
 import { prisma } from '#/lib/db/prisma'
+import { deleteEventWithImages } from '#/features/ledger/server/event-images.service'
 import { validatePasswordChangeInput } from '#/features/auth/change-password'
 import {
   createSession,
@@ -581,15 +582,7 @@ export async function addDiningEventItem(input: {
 export async function deleteDiningEvent(input: { eventId: string }) {
   const userId = await resolveSessionUserId()
   if (!userId) throw new Error('請先登入')
-
-  const event = await prisma.diningEvent.findUnique({ where: { id: input.eventId } })
-  if (!event) throw new Error('找不到活動')
-  if (event.status !== DiningEventStatus.DRAFT) throw new Error('已結算活動不能刪除')
-  if (event.payerId !== userId) throw new Error('只有付款人可刪除活動')
-
-  await prisma.diningEvent.delete({ where: { id: input.eventId } })
-
-  return { ok: true as const }
+  return deleteEventWithImages(input.eventId, userId)
 }
 
 export async function finalizeDiningEvent(input: { eventId: string }) {
