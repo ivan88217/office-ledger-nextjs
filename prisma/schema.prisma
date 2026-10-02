@@ -99,6 +99,7 @@ model Transaction {
 model DiningEvent {
   id                     String            @id @default(auto()) @map("_id") @db.ObjectId
   title                  String
+  description            String?
   payerId                String            @db.ObjectId
   payer                  User              @relation("DiningEventPayer", fields: [payerId], references: [id])
   serviceChargeEnabled   Boolean           @default(false)

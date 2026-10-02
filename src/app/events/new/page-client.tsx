@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
+import { Textarea } from '#/components/ui/textarea'
 import { Label } from '#/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#/components/ui/select'
 
@@ -22,6 +23,7 @@ export function NewDiningEventForm({
 }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [deadline, setDeadline] = useState('')
   const [payerId, setPayerId] = useState(currentUserId ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +47,7 @@ export function NewDiningEventForm({
         setError(err instanceof Error ? err.message : '請輸入有效結單時間')
         return
       }
-      const response = await createDiningEventAction({ title, payerId, orderDeadline })
+      const response = await createDiningEventAction({ title, description, payerId, orderDeadline })
       if (!response.ok) {
         setError(response.message)
         return
@@ -86,6 +88,17 @@ export function NewDiningEventForm({
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="例如：週五聚餐"
                 required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">活動說明（選填）</Label>
+              <Textarea
+                id="description"
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="例如：訂購注意事項、取餐時間與地點"
               />
             </div>
 

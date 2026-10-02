@@ -222,6 +222,7 @@ export async function getDiningEventDetail(input: { eventId: string }) {
   return {
     id: event.id,
     title: event.title,
+    description: event.description ?? null,
     payerId: event.payerId,
     payerUsername: event.payer.username,
     serviceChargeEnabled: event.serviceChargeEnabled,
@@ -414,7 +415,7 @@ async function validateDiningEventUsers(params: {
   if (users.length !== userIds.length) throw new Error('活動包含不存在的使用者')
 }
 
-export async function createDiningEvent(input: { title: string; payerId: string; orderDeadline?: string | null }) {
+export async function createDiningEvent(input: { title: string; description?: string | null; payerId: string; orderDeadline?: string | null }) {
   const user = await requireSessionUser()
   const orderDeadline = parseOrderDeadline(input.orderDeadline ?? null)
   if (orderDeadline && input.payerId !== user.id) throw new Error('只有付款人可設定結單時間')
@@ -425,6 +426,7 @@ export async function createDiningEvent(input: { title: string; payerId: string;
   const event = await prisma.diningEvent.create({
     data: {
       title,
+      description: input.description?.trim() || null,
       payerId: input.payerId,
       orderDeadline,
       serviceChargeEnabled: false,
@@ -490,6 +492,7 @@ export async function updateDiningEvent(input: {
   eventId: string
   expectedUpdatedAt: string
   title: string
+  description?: string | null
   payerId: string
   serviceChargeEnabled: boolean
   serviceChargeRateBps: number
@@ -526,6 +529,7 @@ export async function updateDiningEvent(input: {
     data: {
       updatedAt,
       title,
+      ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
       payerId: input.payerId,
       serviceChargeEnabled: input.serviceChargeEnabled,
       serviceChargeRateBps,

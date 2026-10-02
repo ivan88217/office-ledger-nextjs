@@ -98,6 +98,7 @@ export async function createExpenseTransactionAction(input: {
 export async function createDiningEventAction(input: {
   orderDeadline?: string | null
   title: string
+  description?: string | null
   payerId: string
 }) {
   return runAction(async () => {
@@ -127,6 +128,7 @@ export async function updateDiningEventAction(input: {
   expectedUpdatedAt: string
   eventId: string
   title: string
+  description?: string | null
   payerId: string
   serviceChargeEnabled: boolean
   serviceChargeRateBps: number

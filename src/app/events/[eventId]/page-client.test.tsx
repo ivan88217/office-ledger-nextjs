@@ -11,7 +11,7 @@ vi.mock('#/features/auth/actions', () => ({
   updateDiningEventAction: mocks.update, setDiningEventOrderingAction: vi.fn(),
 }))
 const event: ComponentProps<typeof DiningEventClient>['event'] = {
-  id: 'event', title: '午餐', payerId: 'payer', payerUsername: '付款人',
+  id: 'event', title: '午餐', description: null, payerId: 'payer', payerUsername: '付款人',
   serviceChargeEnabled: false, serviceChargeRateBps: 0, status: 'DRAFT',
   finalizedTransactionId: null, finalizedTransactionTitle: null,
   createdAt: '2026-09-09T03:00:00.000Z', updatedAt: '2026-09-09T03:00:00.000Z',
@@ -23,6 +23,60 @@ const users = [{ id: 'payer', username: '付款人' }, { id: 'participant', user
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 
 describe('活動頁面結單保護', () => {
+  it('複製文案包含說明並保留換行', () => {
+    vi.setSystemTime(new Date('2026-09-09T01:00:00.000Z'))
+    vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } })
+    render(<DiningEventClient event={{ ...event, description: '請自備餐具\n12:30 領餐' }} users={users} />)
+    fireEvent.click(screen.getByRole('button', { name: '複製文案' }))
+    expect(mocks.writeText).toHaveBeenCalledWith(`午餐\n請自備餐具\n12:30 領餐\n${window.location.href}\n12:00結單`)
+  })
+  it('編輯中的說明會帶入文案，清空後立即略過', () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } })
+    render(<DiningEventClient event={{ ...event, orderDeadline: null, description: '原說明' }} users={users} />)
+    fireEvent.change(screen.getByLabelText('活動說明（選填）'), { target: { value: '新說明\n第二行' } })
+    fireEvent.click(screen.getByRole('button', { name: '複製文案' }))
+    expect(mocks.writeText).toHaveBeenLastCalledWith(`午餐\n新說明\n第二行\n${window.location.href}`)
+    fireEvent.change(screen.getByLabelText('活動說明（選填）'), { target: { value: '  \n  ' } })
+    fireEvent.click(screen.getByRole('button', { name: '複製文案' }))
+    expect(mocks.writeText).toHaveBeenLastCalledWith(`午餐\n${window.location.href}`)
+  })
+  it('只編輯說明也會自動儲存，刷新不覆蓋待存內容', async () => {
+    vi.useFakeTimers()
+    mocks.update.mockResolvedValue({ ok: true, data: { updatedAt: '2026-09-09T05:00:00.000Z' } })
+    const openEvent = { ...event, orderDeadline: null, description: '原說明' }
+    const { rerender } = render(<DiningEventClient event={openEvent} users={users} />)
+    fireEvent.change(screen.getByLabelText('活動說明（選填）'), { target: { value: '新說明\n第二行' } })
+    rerender(<DiningEventClient event={{ ...openEvent, serverNow: '2026-09-09T04:00:01.000Z' }} users={users} />)
+    expect((screen.getByLabelText('活動說明（選填）') as HTMLTextAreaElement).value).toBe('新說明\n第二行')
+    await act(async () => { await vi.advanceTimersByTimeAsync(700) })
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      description: '新說明\n第二行', expectedUpdatedAt: event.updatedAt,
+    }))
+  })
+  it('清空說明會自動儲存空字串', async () => {
+    vi.useFakeTimers()
+    mocks.update.mockResolvedValue({ ok: true, data: { updatedAt: '2026-09-09T05:00:00.000Z' } })
+    render(<DiningEventClient event={{ ...event, orderDeadline: null, description: '原說明' }} users={users} />)
+    fireEvent.change(screen.getByLabelText('活動說明（選填）'), { target: { value: '' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(700) })
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ description: '' }))
+  })
+  it('結單參加者可讀說明但不能編輯，付款人仍可編輯', () => {
+    const closedEvent = { ...event, ordersClosedAt: event.serverNow, description: '請自備餐具\n12:30 領餐' }
+    const { rerender } = render(<DiningEventClient event={closedEvent} users={users} />)
+    expect((screen.getByLabelText('活動說明（選填）') as HTMLTextAreaElement).readOnly).toBe(true)
+    rerender(<DiningEventClient event={{ ...closedEvent, currentUserId: 'payer' }} users={users} />)
+    expect((screen.getByLabelText('活動說明（選填）') as HTMLTextAreaElement).readOnly).toBe(false)
+  })
+  it('已結算活動仍能閱讀與複製說明', () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } })
+    render(<DiningEventClient event={{ ...event, status: 'FINALIZED', orderDeadline: null, description: '請自備餐具\n12:30 領餐' }} users={users} />)
+    const description = screen.getByLabelText('活動說明（選填）') as HTMLTextAreaElement
+    expect(description.value).toBe('請自備餐具\n12:30 領餐')
+    expect(description.readOnly).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: '複製文案' }))
+    expect(mocks.writeText).toHaveBeenCalledWith(`午餐\n請自備餐具\n12:30 領餐\n${window.location.href}`)
+  })
   it('複製含同日結單時間的活動文案', async () => {
     vi.setSystemTime(new Date('2026-09-09T01:00:00.000Z'))
     vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } })

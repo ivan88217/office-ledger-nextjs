@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
+import { Textarea } from '#/components/ui/textarea'
 import { Label } from '#/components/ui/label'
 import { Separator } from '#/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#/components/ui/select'
@@ -110,6 +111,7 @@ function summaryUsername(summary: { userId: string }, userNameById: Map<string, 
 
 function eventSettingsSignature(input: {
   title: string
+  description: string
   payerId: string
   serviceChargeEnabled: boolean
   serviceChargePercent: string
@@ -233,6 +235,7 @@ export function DiningEventClient({
     return () => window.clearTimeout(timer)
   }, [event.serverNow, event.orderDeadline, event.ordersClosedAt, isFinalized])
   const [title, setTitle] = useState(event.title)
+  const [description, setDescription] = useState(event.description ?? '')
   const [payerId, setPayerId] = useState(event.payerId)
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(event.serviceChargeEnabled)
   const [serviceChargePercent, setServiceChargePercent] = useState(
@@ -252,6 +255,7 @@ export function DiningEventClient({
   const savedSettingsSignatureRef = useRef(
     eventSettingsSignature({
       title: event.title,
+      description: event.description ?? '',
       payerId: event.payerId,
       serviceChargeEnabled: event.serviceChargeEnabled,
       serviceChargePercent: bpsToPercentInput(event.serviceChargeRateBps),
@@ -278,12 +282,14 @@ export function DiningEventClient({
     const serverServiceChargePercent = bpsToPercentInput(event.serviceChargeRateBps)
     const serverSignature = eventSettingsSignature({
       title: event.title,
+      description: event.description ?? '',
       payerId: event.payerId,
       serviceChargeEnabled: event.serviceChargeEnabled,
       serviceChargePercent: serverServiceChargePercent,
     })
     const localSignature = eventSettingsSignature({
       title,
+      description,
       payerId,
       serviceChargeEnabled,
       serviceChargePercent,
@@ -295,13 +301,14 @@ export function DiningEventClient({
 
     if (!localHasUnsavedSettings) {
       setTitle(event.title)
+      setDescription(event.description ?? '')
       setPayerId(event.payerId)
       setServiceChargeEnabled(event.serviceChargeEnabled)
       setServiceChargePercent(serverServiceChargePercent)
       savedSettingsSignatureRef.current = serverSignature
       setAutoSaveStatus('idle')
     }
-  }, [event, pendingAction, itemDialog, title, payerId, serviceChargeEnabled, serviceChargePercent])
+  }, [event, pendingAction, itemDialog, title, description, payerId, serviceChargeEnabled, serviceChargePercent])
 
   useEffect(() => {
     if (!success) return
@@ -343,6 +350,7 @@ export function DiningEventClient({
 
     const signature = eventSettingsSignature({
       title,
+      description,
       payerId,
       serviceChargeEnabled,
       serviceChargePercent,
@@ -376,7 +384,7 @@ export function DiningEventClient({
     }, 700)
 
     return () => window.clearTimeout(timer)
-  }, [itemsLocked, pendingAction, itemDialog, title, payerId, serviceChargeEnabled, serviceChargePercent, items, router])
+  }, [itemsLocked, pendingAction, itemDialog, title, description, payerId, serviceChargeEnabled, serviceChargePercent, items, router])
 
   function openCreateItemDialog() {
     if (itemsLocked) return
@@ -417,6 +425,7 @@ export function DiningEventClient({
       eventId: event.id,
       expectedUpdatedAt: dataVersionRef.current,
       title,
+      description,
       payerId,
       serviceChargeEnabled,
       serviceChargeRateBps,
@@ -549,7 +558,7 @@ export function DiningEventClient({
   async function onCopyShareText() {
     setShareStatus(null)
     const deadline = event.orderDeadline ? formatCopyDeadline(event.orderDeadline) : null
-    const text = [title.trim() || event.title, window.location.href, deadline].filter(Boolean).join('\n')
+    const text = [title.trim() || event.title, description.trim(), window.location.href, deadline].filter(Boolean).join('\n')
     try {
       await navigator.clipboard.writeText(text)
       setShareStatus('已複製活動文案')
@@ -716,6 +725,18 @@ export function DiningEventClient({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">活動說明（選填）</Label>
+              <Textarea
+                id="description"
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                readOnly={itemsLocked}
+                placeholder="例如：訂購注意事項、取餐時間與地點"
+              />
             </div>
 
             <div className="grid gap-4 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4 md:grid-cols-[auto_1fr] md:items-end">

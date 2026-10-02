@@ -12,7 +12,7 @@ vi.mock('#/features/auth/session', () => ({
   requireSessionUser: mocks.requireUser, resolveSessionUserId: mocks.resolveUser,
   createSession: vi.fn(), destroySession: vi.fn(), getOptionalSessionUser: vi.fn(),
 }))
-import { addDiningEventItem, createDiningEvent, setDiningEventOrdering, updateDiningEvent } from './auth.service'
+import { addDiningEventItem, createDiningEvent, getDiningEventDetail, setDiningEventOrdering, updateDiningEvent } from './auth.service'
 
 const event = {
   id: 'event', title: '午餐', payerId: 'payer', status: 'DRAFT',
@@ -33,6 +33,36 @@ beforeEach(() => {
 })
 
 describe('收單後端權限與更新', () => {
+  it('建立活動保留多行說明並去除邊界空白', async () => {
+    mocks.create.mockResolvedValue({ id: 'event' })
+    await createDiningEvent({ title: '午餐', payerId: 'payer', description: '  請自備餐具\n12:30 領餐  ' })
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ description: '請自備餐具\n12:30 領餐' }),
+    }))
+  })
+  it.each([undefined, null, '  \n  '])('建立活動的空白說明 %s 儲存為空值', async (description) => {
+    mocks.create.mockResolvedValue({ id: 'event' })
+    await createDiningEvent({ title: '午餐', payerId: 'payer', description })
+    expect(mocks.create.mock.calls[0][0].data.description).toBe(null)
+  })
+  it.each([
+    ['  新說明\n第二行  ', '新說明\n第二行'],
+    ['', null],
+    [null, null],
+  ])('更新說明 %s 可以替換或清空', async (description, expected) => {
+    await updateDiningEvent({ ...update, description })
+    expect(mocks.updateMany.mock.calls[0][0].data.description).toBe(expected)
+  })
+  it('未提供說明的舊呼叫端不會覆寫已有說明', async () => {
+    mocks.findUnique.mockResolvedValue({ ...event, description: '原說明' })
+    await updateDiningEvent(update)
+    expect(mocks.updateMany.mock.calls[0][0].data).not.toHaveProperty('description')
+  })
+  it.each([undefined, null, '請自備餐具\n12:30 領餐'])('詳情讀回說明 %s，舊資料回傳空值', async (description) => {
+    mocks.findUnique.mockResolvedValue({ ...event, description, createdAt: event.updatedAt, payer: { username: '付款人' } })
+    const detail = await getDiningEventDetail({ eventId: 'event' })
+    expect(detail.description).toBe(description ?? null)
+  })
   it.each(['deadline', 'manual', 'finalized'])('%s 關閉時拒絕參加者新增與整批修改／刪除', async (kind) => {
     mocks.findUnique.mockResolvedValue({ ...event,
       orderDeadline: kind === 'deadline' ? new Date(0) : null,
