@@ -426,7 +426,7 @@ export async function createDiningEvent(input: { title: string; payerId: string;
       title,
       payerId: input.payerId,
       orderDeadline,
-      serviceChargeEnabled: true,
+      serviceChargeEnabled: false,
       serviceChargeRateBps: 1000,
       status: DiningEventStatus.DRAFT,
       items: [],

@@ -95,7 +95,7 @@ model DiningEvent {
   title                  String
   payerId                String            @db.ObjectId
   payer                  User              @relation("DiningEventPayer", fields: [payerId], references: [id])
-  serviceChargeEnabled   Boolean           @default(true)
+  serviceChargeEnabled   Boolean           @default(false)
   serviceChargeRateBps   Int               @default(1000)
   status                 DiningEventStatus @default(DRAFT)
   orderDeadline          DateTime?
