@@ -1,6 +1,11 @@
 const CACHE_NAME = 'office-ledger-shell-v1'
 const APP_SHELL = ['/offline', '/manifest.webmanifest', '/logo192.png', '/logo512.png', '/office-ledger-logo.png']
 
+function canCache(response) {
+  const policy = response.headers.get('Cache-Control') || ''
+  return !/(?:^|,)\s*(?:no-store|no-cache)\b/i.test(policy)
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
@@ -44,9 +49,13 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(request).then(async (cachedResponse) => {
-      if (cachedResponse) return cachedResponse
+      if (cachedResponse && canCache(cachedResponse)) return cachedResponse
+      if (cachedResponse) {
+        const cache = await caches.open(CACHE_NAME)
+        await cache.delete(request)
+      }
       const networkResponse = await fetch(request)
-      if (networkResponse && networkResponse.ok) {
+      if (networkResponse && networkResponse.ok && canCache(networkResponse)) {
         const cache = await caches.open(CACHE_NAME)
         cache.put(request, networkResponse.clone())
       }
