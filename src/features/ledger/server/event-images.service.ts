@@ -136,11 +136,8 @@ export async function uploadEventImage(
     if (!metadata.format || !['jpeg', 'png', 'webp'].includes(metadata.format) || (metadata.pages ?? 1) > 1) {
       throw new Error('unsupported image')
     }
-    bytes = await decoder
-      .rotate()
-      .resize({ width: 4096, height: 4096, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 92 })
-      .toBuffer()
+    // Preserve menu text and fine strokes without downsampling or lossy compression.
+    bytes = await decoder.rotate().webp({ lossless: true }).toBuffer()
   } catch {
     throw new EventImageError('圖片無法讀取，請使用有效的 JPEG、PNG 或 WebP 圖片', 400)
   }

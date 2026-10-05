@@ -128,7 +128,7 @@ execution: code
 - KTD1. 圖片 metadata 使用獨立的 `DiningEventImage` collection，狀態為 PENDING、READY、DELETING，GCS object key 僅由後端產生。支援 R1、R10、R16；刪除失敗保留 DELETING 記錄供清理重試，`cleanupAfter` 避免活動刪除時先移除仍在上傳的檔案記錄。
 - KTD2. `DiningEvent.imageMutationToken` 為圖片交易的鎖定欄位；交易內更新 token 並保留原 `updatedAt`，避免改變餐點的 optimistic concurrency 版本。上傳完成與刪除都重新檢查目前付款人，並與活動刪除共用交易鎖。支援 R5 至 R8。
 - KTD3. 使用 Next.js Route Handlers 接收 multipart 圖片，每次請求一張，介面可多選並逐張上傳，失敗檔案可重試。請求 body 以串流讀取並限制大小，寫入前驗證登入、付款人與 Origin。支援 R6、R10、R15。
-- KTD4. 第一版支援 JPEG、PNG、WebP；每張最多 10 MiB，每活動最多 20 張。以 sharp 解碼並轉成 WebP，保留方向與比例，最長邊最多 4096 px，拒絕超過 4000 萬像素的圖片。支援 R4、R15。
+- KTD4. 支援 JPEG、PNG、WebP；每張輸入與處理後檔案最多 10 MiB，每活動最多 20 張。以 sharp 解碼並轉成無損 WebP，保留原始解析度、方向與比例，不縮圖或使用有損壓縮，拒絕超過 4000 萬像素的圖片。2026-10-05 依菜單文字清晰度需求取消第一版的 4096 px 縮圖及有損 WebP 設定；既有圖片需重新上傳原檔。支援 R4、R15。
 - KTD5. 圖片由同源、每次驗證登入的 API 讀取，回應 `Cache-Control: private, no-store` 與 `X-Content-Type-Options: nosniff`；不把 GCS 公開 URL 或 credentials 傳給前端。支援 R3、R13、R14。
 - KTD6. 本機 `.env` 使用專案 credentials 副本；Compose 以唯讀方式掛載到容器固定位置。`.dockerignore` 排除 credentials、環境檔與 Git。支援 R12、R13。
 

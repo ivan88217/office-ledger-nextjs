@@ -181,6 +181,45 @@ describe('活動圖片後端', () => {
     expect(objects.size).toBe(0)
     expect(event!.updatedAt.getTime()).toBe(before)
   })
+  it.each(['png', 'jpeg', 'webp'] as const)('%s 菜單保留超過 4096 px 的解析度與每個像素', async (format) => {
+    const width = 5001
+    const height = 64
+    const pixels = Buffer.alloc(width * height * 3, 255)
+    // Thin, contrasting strokes expose both downsampling and lossy compression.
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (x % 11 < 2 && y % 13 < 9) {
+          const offset = (y * width + x) * 3
+          pixels[offset] = 23
+          pixels[offset + 1] = 47
+          pixels[offset + 2] = 71
+        }
+      }
+    }
+    const input = await sharp(pixels, { raw: { width, height, channels: 3 } })
+      .toFormat(format)
+      .toBuffer()
+    const image = await uploadEventImage(eventId, file(input, `image/${format}`, `menu.${format}`))
+    const stored = await getEventImage(eventId, image.id)
+    expect(await sharp(stored).metadata()).toMatchObject({ format: 'webp', width, height })
+    const original = await sharp(input).raw().toBuffer({ resolveWithObject: true })
+    const uploaded = await sharp(stored).raw().toBuffer({ resolveWithObject: true })
+    expect(uploaded.info).toEqual(original.info)
+    expect(uploaded.data.equals(original.data)).toBe(true)
+    expect(records[0].sizeBytes).toBe(stored.length)
+  })
+  it('照片依 EXIF 方向轉正，保留轉正後的解析度與像素並移除 metadata', async () => {
+    const input = await sharp(png).jpeg().withMetadata({ orientation: 6 }).toBuffer()
+    const image = await uploadEventImage(eventId, file(input, 'image/jpeg', 'menu.jpg'))
+    const stored = await getEventImage(eventId, image.id)
+    const metadata = await sharp(stored).metadata()
+    expect(metadata).toMatchObject({ format: 'webp', width: 32, height: 24 })
+    expect(metadata.orientation).toBeUndefined()
+    expect(metadata.exif).toBeUndefined()
+    const original = await sharp(input).rotate().raw().toBuffer()
+    const uploaded = await sharp(stored).raw().toBuffer()
+    expect(uploaded.equals(original)).toBe(true)
+  })
   it('不能用其他活動的圖片識別碼存取', async () => {
     const image = await uploadEventImage(eventId, file())
     records[0].eventId = '555555555555555555555555'
