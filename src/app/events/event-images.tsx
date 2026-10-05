@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
+import { ImageMagnifier } from '#/app/events/image-magnifier'
 
 async function responseBody<T>(response: Response): Promise<T> {
   const body = (await response.json()) as T & { message?: string }
@@ -318,15 +319,11 @@ export function EventImages({ eventId, isPayer }: { eventId: string; isPayer: bo
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl md:max-w-4xl">
           <DialogHeader>
             <DialogTitle className="break-all pr-6">{selected?.fileName}</DialogTitle>
-            <DialogDescription>可開啟完整圖片，進一步放大閱讀。</DialogDescription>
+            <DialogDescription>可使用局部放大查看細節，或開啟完整圖片。</DialogDescription>
           </DialogHeader>
           {selected && (
             <>
-              <img
-                src={selected.url}
-                alt={selected.fileName}
-                className="max-h-[65dvh] w-full object-contain"
-              />
+              <ImageMagnifier key={selected.id} image={selected} />
               <Button variant="outline" asChild>
                 <a href={selected.url} target="_blank" rel="noopener noreferrer">
                   開啟完整圖片

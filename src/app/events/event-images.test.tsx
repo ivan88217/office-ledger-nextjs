@@ -63,6 +63,13 @@ describe('活動圖片介面', () => {
     fireEvent.click(screen.getByRole('button', { name: '放大 菜單.png' }))
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('link', { name: '開啟完整圖片' }).getAttribute('href')).toBe(menu.url)
+    const magnify = screen.getByRole('button', { name: '局部放大' })
+    expect(magnify.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(magnify)
+    expect(magnify.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: '放大 菜單.png' }))
+    expect(screen.getByRole('button', { name: '局部放大' }).getAttribute('aria-pressed')).toBe('false')
   })
   it('多圖上傳保留既有圖片，並顯示成功結果', async () => {
     render(<EventImages eventId={eventId} isPayer />)
