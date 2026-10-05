@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { EventOrderingControls } from '#/app/events/event-ordering-controls'
 import { EventImages } from '#/app/events/event-images'
-import { canEditEventItems, isOrderingClosed, toTaipeiDateTimeInput } from '#/features/ledger/domain/event-ordering'
-import { Check, Copy, Maximize2, Plus, ReceiptText, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { canEditEventItems, formatOrderDeadline, isOrderingClosed, toTaipeiDateTimeInput } from '#/features/ledger/domain/event-ordering'
+import { Check, ChevronDown, Copy, Maximize2, Plus, ReceiptText, Trash2 } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   addDiningEventItemAction,
@@ -236,6 +236,8 @@ export function DiningEventClient({
   }, [event.serverNow, event.orderDeadline, event.ordersClosedAt, isFinalized])
   const [title, setTitle] = useState(event.title)
   const [description, setDescription] = useState(event.description ?? '')
+  const [settingsExpanded, setSettingsExpanded] = useState(true)
+  const settingsPanelId = useId()
   const [payerId, setPayerId] = useState(event.payerId)
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(event.serviceChargeEnabled)
   const [serviceChargePercent, setServiceChargePercent] = useState(
@@ -649,12 +651,24 @@ export function DiningEventClient({
       <div className="space-y-6">
         <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
           <CardHeader>
-            <div className="flex flex-wrap items-center gap-2">
-              <CardTitle>活動設定</CardTitle>
-              <Badge variant={isFinalized ? 'secondary' : 'outline'}>
-                {isFinalized ? '已結算' : isClosed ? '已結單' : '收單中'}
-              </Badge>
-            </div>
+            <CardTitle>
+              <button
+                type="button"
+                aria-label="活動設定"
+                aria-expanded={settingsExpanded}
+                aria-controls={settingsPanelId}
+                onClick={() => setSettingsExpanded((expanded) => !expanded)}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>活動設定</span>
+                  <Badge variant={isFinalized ? 'secondary' : 'outline'}>
+                    {isFinalized ? '已結算' : isClosed ? '已結單' : '收單中'}
+                  </Badge>
+                </span>
+                <ChevronDown aria-hidden="true" className={cn('h-5 w-5 shrink-0 transition-transform', settingsExpanded && 'rotate-180')} />
+              </button>
+            </CardTitle>
             <CardDescription>
               {isFinalized
                 ? '活動已鎖定，請到正式交易處理銷帳。'
@@ -667,9 +681,14 @@ export function DiningEventClient({
                           ? '，請修正錯誤'
                           : ''
                   }。`}
+              {!settingsExpanded && (
+                <p className="mt-1">
+                  {event.orderDeadline ? `結單時間：${formatOrderDeadline(event.orderDeadline)}` : '未設定結單時間'}
+                </p>
+              )}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent id={settingsPanelId} hidden={!settingsExpanded} className={cn('space-y-5', !settingsExpanded && 'hidden')}>
             {error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

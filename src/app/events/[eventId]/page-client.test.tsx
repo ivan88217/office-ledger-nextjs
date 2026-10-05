@@ -1,5 +1,5 @@
 import React, { type ComponentProps } from 'react'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DiningEventClient } from './page-client'
 
@@ -23,6 +23,46 @@ const users = [{ id: 'payer', username: '付款人' }, { id: 'participant', user
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 
 describe('活動頁面結單保護', () => {
+  it('活動設定預設展開，可收合並保留編輯中的說明及自動儲存', async () => {
+    vi.useFakeTimers()
+    mocks.update.mockResolvedValue({ ok: true, data: { updatedAt: '2026-09-09T05:00:00.000Z' } })
+    render(<DiningEventClient event={{ ...event, orderDeadline: null }} users={users} />)
+    const toggle = screen.getByRole('button', { name: /活動設定/ })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    const panel = document.getElementById(toggle.getAttribute('aria-controls')!)!
+    fireEvent.change(screen.getByLabelText('活動說明（選填）'), { target: { value: '請自備餐具\n12:30 領餐' } })
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(within(toggle.closest('[data-slot="card-header"]') as HTMLElement).getByText('未設定結單時間')).toBeTruthy()
+    expect(panel.hidden).toBe(true)
+    expect(screen.queryByRole('textbox', { name: '活動說明（選填）' })).toBeNull()
+    expect(screen.getByRole('button', { name: '新增品項' })).toBeTruthy()
+    await act(async () => { await vi.advanceTimersByTimeAsync(700) })
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ description: '請自備餐具\n12:30 領餐' }))
+
+    fireEvent.click(toggle)
+    expect(panel.hidden).toBe(false)
+    expect((screen.getByRole('textbox', { name: '活動說明（選填）' }) as HTMLTextAreaElement).value).toBe('請自備餐具\n12:30 領餐')
+  })
+  it('活動設定收合時仍顯示台北時間的結單日期，刷新後更新摘要', () => {
+    const { rerender } = render(<DiningEventClient event={event} users={users} />)
+    const toggle = screen.getByRole('button', { name: '活動設定' })
+    fireEvent.click(toggle)
+    const summary = within(toggle.closest('[data-slot="card-header"]') as HTMLElement)
+    expect(summary.getByText('結單時間：2026-09-09 12:00（台北時間 UTC+8）')).toBeTruthy()
+    rerender(<DiningEventClient event={{ ...event, orderDeadline: '2026-09-10T05:30:00.000Z' }} users={users} />)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(summary.getByText('結單時間：2026-09-10 13:30（台北時間 UTC+8）')).toBeTruthy()
+  })
+  it('已結算活動仍能收合與展開設定', () => {
+    render(<DiningEventClient event={{ ...event, status: 'FINALIZED' }} users={users} />)
+    const toggle = screen.getByRole('button', { name: /活動設定/ })
+    fireEvent.click(toggle)
+    expect(screen.queryByRole('textbox', { name: '活動說明（選填）' })).toBeNull()
+    fireEvent.click(toggle)
+    expect((screen.getByRole('textbox', { name: '活動說明（選填）' }) as HTMLTextAreaElement).readOnly).toBe(true)
+  })
   it('複製文案包含說明並保留換行', () => {
     vi.setSystemTime(new Date('2026-09-09T01:00:00.000Z'))
     vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } })
