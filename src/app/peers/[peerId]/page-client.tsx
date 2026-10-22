@@ -10,7 +10,7 @@ import {
   reverseSettlementLogAction,
   settlePeerExpenseItemAction,
 } from '#/features/auth/actions'
-import { paymentTypeLabel } from '#/features/ledger/type-label'
+import { describePeerLog } from '#/features/ledger/peer-log-presentation'
 import { formatTwd } from '#/lib/money/amount'
 import { yuanToCents } from '#/lib/money/dollars'
 import { Alert, AlertDescription } from '#/components/ui/alert'
@@ -20,10 +20,53 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/com
 import { Input } from '#/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 
+type LedgerData = Awaited<ReturnType<typeof import('#/features/auth/auth.service').getPeerLedger>>
+type LedgerLog = LedgerData['logs'][number]
+
+const logDateFormatter = new Intl.DateTimeFormat('zh-TW', {
+  timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+})
+
+function formatLogDate(value: string) {
+  const parts = Object.fromEntries(
+    logDateFormatter.formatToParts(new Date(value)).map(({ type, value }) => [type, value]),
+  )
+  return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`
+}
+
+const directionClass = {
+  incoming: 'text-[color:var(--lagoon-deep)]',
+  outgoing: 'text-[color:var(--sea-ink)]',
+  neutral: 'text-foreground',
+}
+
+function PeerLogContent({ log, peer }: { log: LedgerLog; peer: LedgerData['peer'] }) {
+  const presentation = describePeerLog(log, peer)
+  return (
+    <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
+      <div className="flex flex-wrap items-start gap-2">
+        <p className={`min-w-0 font-semibold ${directionClass[presentation.direction]}`}>{presentation.title}</p>
+        {log.isReversed ? <Badge variant="outline">已沖銷</Badge> : null}
+      </div>
+      {presentation.detail ? <p className="text-xs leading-5 text-muted-foreground">{presentation.detail}</p> : null}
+      {log.transactionId ? (
+        <Link href={`/transactions/${log.transactionId}`} className="block text-sm text-primary hover:underline">
+          {log.transactionTitle ?? '交易'}
+        </Link>
+      ) : null}
+      {log.note ? <p className="text-xs leading-5 text-muted-foreground">{log.note}</p> : null}
+      <time dateTime={log.createdAt} className="block text-xs tabular-nums text-muted-foreground">
+        {formatLogDate(log.createdAt)}
+      </time>
+    </div>
+  )
+}
+
 export function PeerLedgerClient({
   data,
 }: {
-  data: Awaited<ReturnType<typeof import('#/features/auth/auth.service').getPeerLedger>>
+  data: LedgerData
 }) {
   const router = useRouter()
   const [confirmError, setConfirmError] = useState<string | null>(null)
@@ -355,7 +398,7 @@ export function PeerLedgerClient({
       <Card className="border-[color:var(--line)] bg-[color:var(--surface-strong)]">
         <CardHeader>
           <CardTitle>往來紀錄</CardTitle>
-          <CardDescription>銷帳紀錄如按錯可按「沖銷」還原</CardDescription>
+          <CardDescription>金額為當次紀錄，目前剩餘欠款請看上方餘額。時間為台北時間，銷帳如按錯可按「沖銷」還原。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {reverseError ? (
@@ -371,16 +414,10 @@ export function PeerLedgerClient({
                 !log.isReversed
               return (
                 <div key={log.id} className="rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge variant="secondary">{paymentTypeLabel(log.type)}</Badge>
-                    <span className="font-semibold tabular-nums">{formatTwd(log.amountCents)}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <PeerLogContent log={log} peer={data.peer} />
+                    <span className="shrink-0 font-semibold tabular-nums">{formatTwd(log.amountCents)}</span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{log.note ?? '—'}</p>
-                  {log.transactionId ? (
-                    <Link href={`/transactions/${log.transactionId}`} className="mt-2 inline-block text-sm text-primary">
-                      {log.transactionTitle ?? '交易'}
-                    </Link>
-                  ) : null}
                   {canReverse ? (
                     <Button
                       size="sm"
@@ -396,12 +433,11 @@ export function PeerLedgerClient({
               )
             })}
           </div>
-          <Table className="responsive-table">
+          <Table className="responsive-table table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead>類型</TableHead>
-                <TableHead>說明</TableHead>
-                <TableHead className="text-right">金額</TableHead>
+                <TableHead>往來內容</TableHead>
+                <TableHead className="w-32 text-right">當次金額</TableHead>
                 <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -413,22 +449,11 @@ export function PeerLedgerClient({
                   !log.isReversed
                 return (
                   <TableRow key={log.id}>
-                    <TableCell>
-                      <Badge variant="secondary">{paymentTypeLabel(log.type)}</Badge>
+                    <TableCell className="align-top whitespace-normal">
+                      <PeerLogContent log={log} peer={data.peer} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {log.note ?? '—'}
-                      {log.transactionId ? (
-                        <>
-                          {' · '}
-                          <Link href={`/transactions/${log.transactionId}`} className="text-primary hover:underline">
-                            {log.transactionTitle ?? '交易'}
-                          </Link>
-                        </>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatTwd(log.amountCents)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right align-top font-semibold tabular-nums">{formatTwd(log.amountCents)}</TableCell>
+                    <TableCell className="text-right align-top">
                       {canReverse ? (
                         <Button
                           size="sm"
